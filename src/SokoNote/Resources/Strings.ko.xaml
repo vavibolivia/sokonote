@@ -50,6 +50,7 @@
     <sys:String x:Key="S.MoveUp">위로</sys:String>
     <sys:String x:Key="S.MoveDown">아래로</sys:String>
     <sys:String x:Key="S.DeleteTopic">주제 삭제</sys:String>
+    <sys:String x:Key="S.DeleteTopicConfirmWithPage">주제 "{0}"와(과) 이 주제의 일지 {1}건, 그리고 [한 장] 페이지에 적은 내용이 모두 삭제됩니다.&#10;계속할까요?</sys:String>
     <sys:String x:Key="S.DeleteTopicConfirm">주제 "{0}"와(과) 이 주제의 일지 {1}건이 모두 삭제됩니다.&#10;계속할까요?</sys:String>
     <sys:String x:Key="S.TopicDialogNew">새 주제</sys:String>
     <sys:String x:Key="S.TopicDialogEdit">주제 편집</sys:String>

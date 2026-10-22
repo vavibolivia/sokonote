@@ -602,7 +602,7 @@ public partial class MainWindow : Window
     private void TopicDelete_Click(object sender, RoutedEventArgs e)
     {
         if (TopicFromMenu(sender) is not { IsAll: false } t) return;
-        var r = MessageBox.Show(this, Loc.F("S.DeleteTopicConfirm", t.Name, t.EntryCount), Loc.T("S.DeleteTopic"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        var r = MessageBox.Show(this, _vm.DeleteTopicConfirmation(t), Loc.T("S.DeleteTopic"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         if (r != MessageBoxResult.Yes) return;
         // the open entry may belong to this topic: do not resurrect it; otherwise keep its pending edits
         if (_vm.CurrentEntry?.TopicId == t.Id) _dirty = false;

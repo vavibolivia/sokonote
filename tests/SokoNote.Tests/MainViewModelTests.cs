@@ -176,6 +176,23 @@ public sealed class MainViewModelTests : IDisposable
     });
 
     [Fact]
+    public void Deleting_a_topic_warns_about_its_page() => UiThread.Run(() => // real strings
+    {
+        // regression: the confirmation said "0 entries" while the topic's one-page notes were deleted with it
+        var (vm, _) = Create();
+        var a = vm.AddTopic("A", "#111111");
+        var withoutPage = vm.DeleteTopicConfirmation(vm.RealTopics.Single());
+        Assert.Equal(Services.Loc.F("S.DeleteTopicConfirm", "A", 0), withoutPage);
+
+        var page = vm.Repo.GetOrCreatePage(a.Id);
+        page.PlainText = "한 장에만 적은 중요한 메모";
+        vm.Repo.UpdateEntry(page);
+        var withPage = vm.DeleteTopicConfirmation(vm.RealTopics.Single());
+        Assert.Equal(Services.Loc.F("S.DeleteTopicConfirmWithPage", "A", 0), withPage);
+        Assert.NotEqual(withoutPage, withPage);
+    });
+
+    [Fact]
     public void Date_navigation_filters_the_list() => Sta.Run(() =>
     {
         var (vm, _) = Create();

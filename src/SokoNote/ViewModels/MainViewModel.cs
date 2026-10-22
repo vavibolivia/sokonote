@@ -173,6 +173,14 @@ public partial class MainViewModel : ObservableObject
         if (CurrentEntry?.TopicId == t.Id) CurrentEntry.TopicColor = color;
     }
 
+    /// <summary>Confirmation text for deleting a topic; it names the one-page notes too when the page has any.</summary>
+    public string DeleteTopicConfirmation(Topic t)
+    {
+        var hasPageNotes = Repo.QueryEntries(new EntryQuery { TopicId = t.Id, IncludePages = true, IncludeFullText = true })
+            .Any(e => e.IsPage && e.PlainText.Trim().Length > 0);
+        return Loc.F(hasPageNotes ? "S.DeleteTopicConfirmWithPage" : "S.DeleteTopicConfirm", t.Name, t.EntryCount);
+    }
+
     public void DeleteTopic(Topic t)
     {
         Repo.DeleteTopic(t.Id);

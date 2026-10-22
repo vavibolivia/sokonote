@@ -50,6 +50,7 @@
     <sys:String x:Key="S.MoveUp">Move up</sys:String>
     <sys:String x:Key="S.MoveDown">Move down</sys:String>
     <sys:String x:Key="S.DeleteTopic">Delete topic</sys:String>
+    <sys:String x:Key="S.DeleteTopicConfirmWithPage">Topic "{0}", its {1} entries and everything written on its one-page notes will be deleted.&#10;Continue?</sys:String>
     <sys:String x:Key="S.DeleteTopicConfirm">Topic "{0}" and its {1} entries will be deleted.&#10;Continue?</sys:String>
     <sys:String x:Key="S.TopicDialogNew">New topic</sys:String>
     <sys:String x:Key="S.TopicDialogEdit">Edit topic</sys:String>
