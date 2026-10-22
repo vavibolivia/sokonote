@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: release
-  cancel-in-progress: true
+  cancel-in-progress: false # queue instead: a cancel mid-release could leave no downloadable binary
 
 jobs:
   build:
@@ -43,10 +43,19 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Never delete the release: move the tag, replace the asset in place, then update the text.
+        # At every moment the download link points at a complete zip (old or new).
         run: |
           $sha = "${{ github.sha }}".Substring(0, 7)
-          gh release delete latest --yes --cleanup-tag 2>$null
-          gh release create latest SokoNote-win-x64.zip `
-            --title "SokoNote (build ${{ github.run_number }}, $sha)" `
-            --notes "main@$sha 자동 빌드. SokoNote-win-x64.zip을 풀고 SokoNote.exe를 실행하세요 (.NET 설치 불필요)." `
-            --target ${{ github.sha }} --latest
+          $title = "SokoNote (build ${{ github.run_number }}, $sha)"
+          $notes = "main@$sha 자동 빌드. SokoNote-win-x64.zip을 풀고 SokoNote.exe를 실행하세요 (.NET 설치 불필요)."
+          git tag -f latest ${{ github.sha }}
+          git push -f origin refs/tags/latest
+          gh release view latest *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload latest SokoNote-win-x64.zip --clobber
+            gh release edit latest --title $title --notes $notes --latest
+          } else {
+            gh release create latest SokoNote-win-x64.zip --title $title --notes $notes --target ${{ github.sha }} --latest
+          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
