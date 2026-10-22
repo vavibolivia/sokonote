@@ -11,7 +11,7 @@ namespace SokoNote.Data;
 /// </summary>
 public sealed class WorkLogRepository
 {
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
     private const string DateFormat = "yyyy-MM-dd";
     private readonly string _connectionString;
 
@@ -75,7 +75,22 @@ public sealed class WorkLogRepository
                 created_at TEXT NOT NULL);
             """;
         cmd.ExecuteNonQuery();
+        Migrate(c);
         SetSetting(c, "schema.version", SchemaVersion.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>Adds columns introduced after version 1 to existing databases.</summary>
+    private static void Migrate(SqliteConnection c)
+    {
+        using var info = c.CreateCommand();
+        info.CommandText = "SELECT COUNT(*) FROM pragma_table_info('entries') WHERE name = 'is_page'";
+        if (Convert.ToInt32(info.ExecuteScalar(), CultureInfo.InvariantCulture) > 0) return;
+        using var alter = c.CreateCommand();
+        alter.CommandText = """
+            ALTER TABLE entries ADD COLUMN is_page INTEGER NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS ix_entries_page ON entries(topic_id, is_page);
+            """;
+        alter.ExecuteNonQuery();
     }
 
     // ------------------------------------------------------------------ topics
@@ -86,7 +101,7 @@ public sealed class WorkLogRepository
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
             SELECT t.id, t.name, t.color, t.sort_order,
-                   (SELECT COUNT(*) FROM entries e WHERE e.topic_id = t.id)
+                   (SELECT COUNT(*) FROM entries e WHERE e.topic_id = t.id AND e.is_page = 0)
             FROM topics t ORDER BY t.sort_order, t.id
             """;
         using var r = cmd.ExecuteReader();
@@ -109,7 +124,7 @@ public sealed class WorkLogRepository
     {
         using var c = Open();
         using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM entries";
+        cmd.CommandText = "SELECT COUNT(*) FROM entries WHERE is_page = 0";
         return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
@@ -128,6 +143,13 @@ public sealed class WorkLogRepository
         cmd.Parameters.AddWithValue("$t", Now());
         var id = (long)cmd.ExecuteScalar()!;
         return new Topic { Id = id, Name = name, Color = color };
+    }
+
+    /// <summary>True when another topic already uses this name (trimmed, case-insensitive).</summary>
+    public bool TopicNameExists(string name, long? excludeId = null)
+    {
+        var wanted = (name ?? "").Trim();
+        return GetTopics().Any(t => t.Id != excludeId && string.Equals(t.Name, wanted, StringComparison.CurrentCultureIgnoreCase));
     }
 
     public void RenameTopic(long id, string name)
@@ -177,10 +199,11 @@ public sealed class WorkLogRepository
         var text = q.IncludeFullText ? "e.plain_text" : "substr(e.plain_text, 1, 200)";
         var sql = $"""
             SELECT e.id, e.topic_id, t.name, t.color, e.entry_date, e.title, {text},
-                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at
+                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at, e.is_page
             FROM entries e JOIN topics t ON t.id = e.topic_id
             WHERE 1=1
             """;
+        if (!q.IncludePages) sql += " AND e.is_page = 0";
         if (q.TopicId is long tid && tid > 0)
         {
             sql += " AND e.topic_id=$tid";
@@ -235,6 +258,7 @@ public sealed class WorkLogRepository
                 PaperStyle = (PaperStyle)r.GetInt32(9),
                 CreatedAt = ParseStamp(r.GetString(10)),
                 UpdatedAt = ParseStamp(r.GetString(11)),
+                IsPage = r.GetInt64(12) != 0,
             });
         }
         return list;
@@ -246,7 +270,7 @@ public sealed class WorkLogRepository
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
             SELECT e.id, e.topic_id, t.name, t.color, e.entry_date, e.title, e.plain_text,
-                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at, e.content
+                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at, e.content, e.is_page
             FROM entries e JOIN topics t ON t.id = e.topic_id WHERE e.id=$id
             """;
         cmd.Parameters.AddWithValue("$id", id);
@@ -269,6 +293,7 @@ public sealed class WorkLogRepository
             CreatedAt = ParseStamp(r.GetString(10)),
             UpdatedAt = ParseStamp(r.GetString(11)),
             Content = r.IsDBNull(12) ? null : (byte[])r.GetValue(12),
+            IsPage = r.GetInt64(13) != 0,
         };
     }
 
@@ -277,13 +302,14 @@ public sealed class WorkLogRepository
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO entries(topic_id, entry_date, title, content, plain_text, paper_color, paper_style, status, created_at, updated_at)
-            VALUES($tid, $d, $title, $content, $plain, $pc, $ps, $st, $now, $now);
+            INSERT INTO entries(topic_id, entry_date, title, content, plain_text, paper_color, paper_style, status, created_at, updated_at, is_page)
+            VALUES($tid, $d, $title, $content, $plain, $pc, $ps, $st, $now, $now, $page);
             SELECT last_insert_rowid();
             """;
         var now = DateTime.Now;
         BindEntry(cmd, e);
         cmd.Parameters.AddWithValue("$now", Stamp(now));
+        cmd.Parameters.AddWithValue("$page", e.IsPage ? 1 : 0);
         e.Id = (long)cmd.ExecuteScalar()!;
         e.CreatedAt = now;
         e.UpdatedAt = now;
@@ -321,6 +347,21 @@ public sealed class WorkLogRepository
         cmd.Parameters.AddWithValue("$st", (int)e.Status);
     }
 
+    /// <summary>The topic's "one page" document, created empty on first use.</summary>
+    public Entry GetOrCreatePage(long topicId)
+    {
+        using (var c = Open())
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.CommandText = "SELECT id FROM entries WHERE topic_id=$t AND is_page=1 ORDER BY id LIMIT 1";
+            cmd.Parameters.AddWithValue("$t", topicId);
+            if (cmd.ExecuteScalar() is long id && GetEntry(id) is { } existing) return existing;
+        }
+        var page = new Entry { TopicId = topicId, EntryDate = DateTime.Today, IsPage = true };
+        InsertEntry(page);
+        return GetEntry(page.Id)!;
+    }
+
     public void DeleteEntry(long id)
     {
         Exec("DELETE FROM entries WHERE id=$id", ("$id", id));
@@ -331,8 +372,8 @@ public sealed class WorkLogRepository
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = topicId is long t && t > 0
-            ? "SELECT DISTINCT entry_date FROM entries WHERE topic_id=$t"
-            : "SELECT DISTINCT entry_date FROM entries";
+            ? "SELECT DISTINCT entry_date FROM entries WHERE topic_id=$t AND is_page = 0"
+            : "SELECT DISTINCT entry_date FROM entries WHERE is_page = 0";
         if (topicId is long t2 && t2 > 0) cmd.Parameters.AddWithValue("$t", t2);
         using var r = cmd.ExecuteReader();
         var set = new HashSet<DateTime>();

@@ -1,0 +1,52 @@
+name: build-and-release
+
+# Every push to main is tested, published as a self-contained Windows build and attached to the rolling
+# "latest" release, so a downloadable binary always matches main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test SokoNote.sln -c Release --logger "console;verbosity=normal"
+
+      - name: Publish (self-contained, single file)
+        run: >
+          dotnet publish src/SokoNote/SokoNote.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Remove-Item publish/*.xml -ErrorAction SilentlyContinue   # package API docs, not needed at runtime
+          Compress-Archive -Path publish/* -DestinationPath SokoNote-win-x64.zip
+
+      - name: Update the "latest" release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          gh release delete latest --yes --cleanup-tag 2>$null
+          gh release create latest SokoNote-win-x64.zip `
+            --title "SokoNote (build ${{ github.run_number }}, $sha)" `
+            --notes "main@$sha 자동 빌드. SokoNote-win-x64.zip을 풀고 SokoNote.exe를 실행하세요 (.NET 설치 불필요)." `
+            --target ${{ github.sha }} --latest

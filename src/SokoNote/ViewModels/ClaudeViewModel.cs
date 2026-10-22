@@ -178,6 +178,34 @@ public partial class ClaudeViewModel : ObservableObject
 
     public List<Entry> CollectEntries(ClaudeScope scope)
     {
+        var list = CollectDatedEntries(scope);
+        if (scope == ClaudeScope.CurrentEntry) return list;
+
+        // topic pages: whole page for topic/everything scopes, only the matching days for date scopes
+        var pages = _main.Repo.QueryEntries(new EntryQuery { IncludePages = true, IncludeFullText = true, Limit = 2000,
+                TopicId = scope is ClaudeScope.CurrentTopic or ClaudeScope.SelectedDate ? _main.SelectedTopicId : null })
+            .Where(e => e.IsPage).ToList();
+        var range = scope switch
+        {
+            ClaudeScope.SelectedDate => ((DateTime, DateTime)?)(DayOf(), DayOf()),
+            ClaudeScope.Last7Days => (DateTime.Today.AddDays(-6), DateTime.Today),
+            ClaudeScope.Last30Days => (DateTime.Today.AddDays(-29), DateTime.Today),
+            _ => null,
+        };
+        foreach (var p in pages)
+        {
+            if (range is { } r) p.PlainText = PageService.FilterDays(p.PlainText, r.Item1, r.Item2);
+            if (p.PlainText.Trim().Length == 0) continue;
+            if (string.IsNullOrWhiteSpace(p.Title)) p.Title = Loc.F("S.PageTitle", p.TopicName);
+            list.Add(p);
+        }
+        return list;
+
+        DateTime DayOf() => _main.IsDateMode || _main.IsPageMode ? _main.SelectedDate.Date : DateTime.Today;
+    }
+
+    private List<Entry> CollectDatedEntries(ClaudeScope scope)
+    {
         var repo = _main.Repo;
         var q = new EntryQuery { IncludeFullText = true, Limit = 2000 };
         switch (scope)
@@ -186,7 +214,7 @@ public partial class ClaudeViewModel : ObservableObject
                 if (_main.CurrentEntry is { } cur && repo.GetEntry(cur.Id) is { } full) return new List<Entry> { full };
                 return new List<Entry>();
             case ClaudeScope.SelectedDate:
-                q.Date = _main.IsDateMode ? _main.SelectedDate.Date : DateTime.Today;
+                q.Date = _main.IsDateMode || _main.IsPageMode ? _main.SelectedDate.Date : DateTime.Today;
                 q.TopicId = _main.SelectedTopicId;
                 break;
             case ClaudeScope.Last7Days:

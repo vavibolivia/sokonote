@@ -94,13 +94,70 @@ public static class BackupService
         return target;
     }
 
-    private static void Prune()
+    public const int KeepManual = 10;
+
+    private static readonly System.Text.RegularExpressions.Regex DailyName = new(@"^sokonote-\d{8}\.db$");
+    private static readonly System.Text.RegularExpressions.Regex ManualName = new(@"^sokonote-\d{8}-\d{6}\.db$");
+
+    private static void Prune() => Prune(AppPaths.BackupDir);
+
+    /// <summary>
+    /// Keeps the newest <see cref="KeepDays"/> automatic daily backups and, separately, the newest <see cref="KeepManual"/>
+    /// manual ones, so "back up now" never pushes out the daily history. Age comes from the timestamp in the file name
+    /// (file times change when the folder is copied); files with other names are never touched.
+    /// </summary>
+    internal static void Prune(string dir)
     {
-        var files = new DirectoryInfo(AppPaths.BackupDir).GetFiles("sokonote-*.db")
-            .OrderByDescending(f => f.LastWriteTimeUtc).Skip(KeepDays);
-        foreach (var f in files)
+        var files = new DirectoryInfo(dir).GetFiles("sokonote-*.db");
+        var old = files.Where(f => DailyName.IsMatch(f.Name)).OrderByDescending(f => f.Name, StringComparer.Ordinal).Skip(KeepDays)
+            .Concat(files.Where(f => ManualName.IsMatch(f.Name)).OrderByDescending(f => f.Name, StringComparer.Ordinal).Skip(KeepManual));
+        foreach (var f in old)
         {
             try { f.Delete(); } catch { /* in use: try again next start */ }
+        }
+    }
+}
+
+public static class DatabaseRecovery
+{
+    /// <summary>
+    /// Replaces a database that cannot be opened with the newest backup that can. The damaged file (and its
+    /// -wal/-shm side files, which must not be replayed onto the backup) is renamed, never deleted.
+    /// Returns the backup used, or null when no usable backup exists (nothing is changed then).
+    /// </summary>
+    public static string? RestoreLatestBackup(string dbPath, string backupDir)
+    {
+        if (!Directory.Exists(backupDir)) return null;
+        var candidates = new DirectoryInfo(backupDir).GetFiles("sokonote-*.db")
+            .OrderByDescending(f => f.Name, StringComparer.Ordinal).Select(f => f.FullName);
+        var usable = candidates.FirstOrDefault(IsHealthy);
+        if (usable is null) return null;
+
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        foreach (var suffix in new[] { "", "-wal", "-shm" })
+            if (File.Exists(dbPath + suffix)) File.Move(dbPath + suffix, $"{dbPath}.damaged-{stamp}{suffix}");
+        File.Copy(usable, dbPath);
+        return usable;
+    }
+
+    private static bool IsHealthy(string path)
+    {
+        try
+        {
+            var cs = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = path, Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadOnly, Pooling = false,
+            }.ToString();
+            using var c = new Microsoft.Data.Sqlite.SqliteConnection(cs);
+            c.Open();
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "PRAGMA quick_check; SELECT COUNT(*) FROM entries;";
+            using var r = cmd.ExecuteReader();
+            return r.Read() && r.GetString(0) == "ok";
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 }

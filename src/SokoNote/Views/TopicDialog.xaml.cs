@@ -10,8 +10,12 @@ public partial class TopicDialog : Window
     public string TopicName => NameBox.Text.Trim();
     public string Color { get; private set; }
 
-    public TopicDialog(Window owner, string? name, string? color)
+    private readonly Func<string, bool>? _isDuplicate;
+
+    /// <param name="isDuplicate">Returns true when another topic already has the given name.</param>
+    public TopicDialog(Window owner, string? name, string? color, Func<string, bool>? isDuplicate = null)
     {
+        _isDuplicate = isDuplicate;
         InitializeComponent();
         Owner = owner;
         Title = name is null ? Loc.T("S.TopicDialogNew") : Loc.T("S.TopicDialogEdit");
@@ -44,8 +48,12 @@ public partial class TopicDialog : Window
 
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
-        if (TopicName.Length == 0)
+        var error = TopicName.Length == 0 ? Loc.T("S.TopicNameRequired")
+            : _isDuplicate?.Invoke(TopicName) == true ? Loc.F("S.TopicNameDuplicate", TopicName)
+            : null;
+        if (error is not null)
         {
+            ErrorText.Text = error;
             ErrorText.Visibility = Visibility.Visible;
             NameBox.Focus();
             return;

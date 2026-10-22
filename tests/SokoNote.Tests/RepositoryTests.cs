@@ -48,6 +48,20 @@ public sealed class RepositoryTests : IDisposable
     }
 
     [Fact]
+    public void Duplicate_topic_names_are_detected()
+    {
+        var a = _repo.AddTopic("프로젝트 A", "#111111");
+        var b = _repo.AddTopic("Meeting", "#222222");
+
+        Assert.True(_repo.TopicNameExists("프로젝트 A"));
+        Assert.True(_repo.TopicNameExists("  프로젝트 A "));
+        Assert.True(_repo.TopicNameExists("meeting"));      // case-insensitive
+        Assert.False(_repo.TopicNameExists("프로젝트 B"));
+        Assert.False(_repo.TopicNameExists("Meeting", excludeId: b.Id)); // renaming to itself is fine
+        Assert.True(_repo.TopicNameExists("Meeting", excludeId: a.Id));
+    }
+
+    [Fact]
     public void Long_topic_name_is_truncated()
     {
         var t = _repo.AddTopic(new string('가', 300), "#000000");
@@ -178,7 +192,7 @@ public sealed class RepositoryTests : IDisposable
         Assert.Equal("v2", _repo.GetSetting("k"));
         _repo.SetSetting("k", null);
         Assert.Null(_repo.GetSetting("k"));
-        Assert.Equal("1", _repo.GetSetting("schema.version"));
+        Assert.Equal("2", _repo.GetSetting("schema.version"));
     }
 
     [Fact]
@@ -247,6 +261,56 @@ public sealed class RepositoryTests : IDisposable
         var back = _repo.GetEntry(e.Id)!;
         Assert.Equal(blob, back.Content);
         Assert.Equal(1_000_000, back.PlainText.Length);
+    }
+
+    [Fact]
+    public void Each_topic_has_one_page_kept_out_of_entry_lists()
+    {
+        var a = _repo.AddTopic("A", "#111111");
+        var b = _repo.AddTopic("B", "#222222");
+        _repo.InsertEntry(NewEntry(a.Id, DateTime.Today, "카드"));
+
+        var page = _repo.GetOrCreatePage(a.Id);
+        Assert.True(page.IsPage);
+        Assert.Equal(page.Id, _repo.GetOrCreatePage(a.Id).Id);           // one page per topic
+        Assert.NotEqual(page.Id, _repo.GetOrCreatePage(b.Id).Id);
+
+        page.PlainText = "## 2026-10-22 10월 22일 (목)\n페이지 내용";
+        _repo.UpdateEntry(page);
+        Assert.True(_repo.GetEntry(page.Id)!.IsPage);
+
+        Assert.Single(_repo.QueryEntries(new EntryQuery()));             // only the card
+        Assert.Equal(1, _repo.CountEntries());
+        Assert.Equal(1, _repo.GetTopics().Single(t => t.Id == a.Id).EntryCount);
+        Assert.Single(_repo.GetEntryDates(a.Id));
+        Assert.Equal(3, _repo.QueryEntries(new EntryQuery { IncludePages = true }).Count);
+        Assert.Contains(_repo.QueryEntries(new EntryQuery { IncludePages = true, Search = "2026-10-22" }), e => e.IsPage);
+    }
+
+    [Fact]
+    public void Existing_database_without_page_column_is_upgraded()
+    {
+        var path = Path.Combine(_dir, "old.db");
+        using (var c = new SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            c.Open();
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE topics(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '#5B8DEF',
+                    sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+                CREATE TABLE entries(id INTEGER PRIMARY KEY AUTOINCREMENT, topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                    entry_date TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', content BLOB, plain_text TEXT NOT NULL DEFAULT '',
+                    paper_color TEXT NOT NULL DEFAULT '#FFFDF5', paper_style INTEGER NOT NULL DEFAULT 0, status INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+                INSERT INTO topics(name, created_at) VALUES('옛 주제', '2026-01-01');
+                INSERT INTO entries(topic_id, entry_date, title, created_at, updated_at) VALUES(1, '2026-01-02', '옛 일지', '2026-01-02', '2026-01-02');
+                """;
+            cmd.ExecuteNonQuery();
+        }
+        var repo = new WorkLogRepository(path);
+        Assert.Equal("옛 일지", repo.QueryEntries(new EntryQuery()).Single().Title);
+        Assert.True(repo.GetOrCreatePage(1).IsPage);
+        Assert.Equal("2", repo.GetSetting("schema.version"));
     }
 
     [Fact]

@@ -54,6 +54,9 @@ public partial class Entry : ObservableObject
 
     /// <summary>Plain text copy used for search, previews and the Claude context.</summary>
     public string PlainText { get; set; } = "";
+
+    /// <summary>The topic's single continuous "one page" document (date dividers inside) rather than a dated entry.</summary>
+    public bool IsPage { get; set; }
 }
 
 public sealed class ChatMessage
@@ -78,4 +81,7 @@ public sealed class EntryQuery
     public EntryStatus? Status { get; set; }
     public int Limit { get; set; } = 5000;
     public bool IncludeFullText { get; set; }
+
+    /// <summary>Also return topic pages (normally only dated entries are listed).</summary>
+    public bool IncludePages { get; set; }
 }

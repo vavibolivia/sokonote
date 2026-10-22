@@ -8,6 +8,15 @@
     <sys:String x:Key="S.EmptyList">표시할 일지가 없습니다.</sys:String>
     <sys:String x:Key="S.SearchResults">"{0}" 검색 결과</sys:String>
     <sys:String x:Key="S.AllEntries">전체 일지</sys:String>
+    <sys:String x:Key="S.ListCountTruncated">{0} · 최근 {1}건만 표시 (날짜·검색으로 좁혀 보세요)</sys:String>
+    <sys:String x:Key="S.OnePage">한 장</sys:String>
+    <sys:String x:Key="S.OnePageHint">주제마다 한 장에 날짜별로 이어서 기록합니다. 날짜 구분선은 자동으로 생기고 고칠 수 없습니다. 검색창에 날짜(예: 10월 22일, 10/22, 2026-10-22)를 입력하고 Enter를 누르면 그 날짜로 이동합니다.</sys:String>
+    <sys:String x:Key="S.PageTitle">{0} — 한 장</sys:String>
+    <sys:String x:Key="S.PagePickTopic">왼쪽에서 주제를 선택하세요</sys:String>
+    <sys:String x:Key="S.PageDayCount">날짜 {0}개 · 날짜를 누르면 그 위치로 이동</sys:String>
+    <sys:String x:Key="S.PageDividerLocked">날짜 구분선은 지우거나 고칠 수 없습니다.</sys:String>
+    <sys:String x:Key="S.PageDateNotFound">이 페이지에 {0} 기록이 없습니다.</sys:String>
+    <sys:String x:Key="S.PageTextNotFound">"{0}"을(를) 찾을 수 없습니다.</sys:String>
     <sys:String x:Key="S.ListCount">{0} · {1}건</sys:String>
     <sys:String x:Key="S.Status.Note">메모</sys:String>
     <sys:String x:Key="S.Status.InProgress">진행 중</sys:String>
@@ -21,6 +30,9 @@
     <sys:String x:Key="S.Close">닫기</sys:String>
     <sys:String x:Key="S.Error">오류</sys:String>
     <sys:String x:Key="S.ErrorStartup">앱을 시작할 수 없습니다.&#10;{0}</sys:String>
+    <sys:String x:Key="S.DbDamaged">데이터 파일이 손상되어 열 수 없습니다.&#10;{0}&#10;&#10;가장 최근의 정상 백업으로 복구할까요? (손상된 파일은 삭제하지 않고 이름을 바꿔 보관합니다)</sys:String>
+    <sys:String x:Key="S.DbNoBackup">사용할 수 있는 백업이 없어 복구하지 못했습니다.</sys:String>
+    <sys:String x:Key="S.DbRestored">백업 {0}에서 복구했습니다. 그 이후에 작성한 내용은 포함되지 않을 수 있습니다.</sys:String>
     <sys:String x:Key="S.ErrorUnexpected">예기치 않은 오류가 발생했습니다. 작업 내용은 저장되어 있습니다.&#10;{0}</sys:String>
 
     <!-- sidebar -->
@@ -41,6 +53,7 @@
     <sys:String x:Key="S.TopicName">주제 이름</sys:String>
     <sys:String x:Key="S.TopicNamePlaceholder">예) 프로젝트 A</sys:String>
     <sys:String x:Key="S.TopicColor">색상</sys:String>
+    <sys:String x:Key="S.TopicNameDuplicate">"{0}" 주제가 이미 있습니다. 다른 이름을 입력하세요.</sys:String>
     <sys:String x:Key="S.TopicNameRequired">주제 이름을 입력하세요.</sys:String>
     <sys:String x:Key="S.NeedTopicFirst">먼저 왼쪽에서 주제를 추가하세요.</sys:String>
 
@@ -92,6 +105,25 @@
     <sys:String x:Key="S.LinkUrl">URL</sys:String>
     <sys:String x:Key="S.LinkUrlPlaceholder">https://…</sys:String>
     <sys:String x:Key="S.LinkInvalid">올바른 URL을 입력하세요. (예: https://example.com)</sys:String>
+    <sys:String x:Key="S.ReadAllTruncated">전체 {1}건 중 최근 {0}건만 표시합니다. 날짜·주제·검색으로 범위를 좁혀 보세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Open">웹에서 묻기 (API 불필요)</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.OpenHint">claude.ai를 앱 안의 브라우저로 열어, 내 Claude 계정으로 업무 일지에 대해 질문합니다. API 키나 Claude Code가 필요 없습니다.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Title">Claude 웹 — 소코 업무정리</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.QuestionPlaceholder">업무에 대해 물어볼 내용 (예: 이번 달 진행 상황을 정리해줘)</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Send">업무 내용과 함께 넣기</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Insert">선택한 답변 → 일지</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.New">새 대화</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Loading">claude.ai를 여는 중…</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Hint">처음 한 번은 claude.ai에 로그인하세요. 범위와 질문을 정하고 [업무 내용과 함께 넣기]를 누르면 입력창에 들어갑니다. 확인 후 Enter로 보내세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Inserted">일지 {0}건과 질문을 입력창에 넣었습니다. 확인 후 Enter로 보내세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoInput">입력창을 찾지 못했습니다(로그인 전일 수 있음). 내용을 클립보드에 복사했으니 입력창에 Ctrl+V로 붙여넣으세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.CopiedExternal">일지 {0}건과 질문을 클립보드에 복사하고 기본 브라우저에서 claude.ai를 열었습니다. 입력창에 Ctrl+V로 붙여넣으세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NotClaude">claude.ai가 아닌 페이지에는 업무 내용을 넣지 않습니다. claude.ai로 돌아갔으니 다시 눌러 주세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoSelection">일지에 넣을 답변 부분을 먼저 드래그해서 선택하세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoEntry">먼저 메인 창에서 내용을 넣을 일지를 여세요.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.InsertedToEntry">선택한 내용을 열려 있는 일지 끝에 넣었습니다.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoRuntime">내장 브라우저(WebView2)를 시작할 수 없습니다: {0}&#10;[업무 내용과 함께 넣기]를 누르면 내용을 복사하고 기본 브라우저에서 claude.ai를 엽니다.</sys:String>
+    <sys:String x:Key="S.LinkBlocked">보안을 위해 이 형식의 링크는 열 수 없습니다: {0}</sys:String>
     <sys:String x:Key="S.LinkHint">Ctrl+클릭으로 링크를 엽니다</sys:String>
     <sys:String x:Key="S.Paper">종이</sys:String>
     <sys:String x:Key="S.PaperColor">종이 색</sys:String>
@@ -107,6 +139,7 @@
     <sys:String x:Key="S.Words">단어 {0} · 글자 {1}</sys:String>
     <sys:String x:Key="S.Saved">저장됨 {0}</sys:String>
     <sys:String x:Key="S.Unsaved">입력 중…</sys:String>
+    <sys:String x:Key="S.CloseUnsaved">변경 내용을 저장하지 못했습니다.&#10;&#10;{0}&#10;&#10;그래도 종료할까요? (저장되지 않은 내용은 사라집니다)</sys:String>
     <sys:String x:Key="S.SaveFailed">저장 실패: {0}</sys:String>
     <sys:String x:Key="S.NoEntrySelected">선택된 일지가 없습니다</sys:String>
     <sys:String x:Key="S.NoEntryHint">왼쪽에서 일지를 선택하거나 Ctrl+N 으로 새로 작성하세요.</sys:String>

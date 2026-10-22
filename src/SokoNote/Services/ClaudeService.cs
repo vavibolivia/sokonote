@@ -58,18 +58,31 @@ public sealed class ClaudeService
         });
     }
 
-    public async Task<string> AskAsync(string prompt, ClaudeOptions options, CancellationToken ct)
+    /// <summary>
+    /// Arguments for a one-shot question. The assistant only needs the journal text we pipe in, and that text can
+    /// contain anything pasted from the web (i.e. prompt injection), so it gets no tools at all: no built-in tools
+    /// (file reads, web fetch, shell…), no MCP servers from the user's config, and no saved session.
+    /// </summary>
+    internal static List<string> BuildAskArgs(string? model)
     {
-        var args = new List<string> { "-p", "--output-format", "text" };
-        if (!string.IsNullOrWhiteSpace(options.Model))
+        var args = new List<string>
+        {
+            "-p", "--output-format", "text",
+            "--tools", "",
+            "--strict-mcp-config",
+            "--no-session-persistence",
+        };
+        if (!string.IsNullOrWhiteSpace(model))
         {
             args.Add("--model");
-            args.Add(options.Model.Trim());
+            args.Add(model.Trim());
         }
-        // The assistant only needs the journal text we pipe in; keep it from touching the machine.
-        args.Add("--disallowedTools");
-        args.Add("Bash,Edit,Write,NotebookEdit");
+        return args;
+    }
 
+    public async Task<string> AskAsync(string prompt, ClaudeOptions options, CancellationToken ct)
+    {
+        var args = BuildAskArgs(options.Model);
         var (code, stdout, stderr) = await RunAsync(options, args, prompt, ct).ConfigureAwait(false);
         if (code != 0)
         {
@@ -111,6 +124,25 @@ public sealed class ClaudeService
         Process.Start(new ProcessStartInfo("cmd.exe", $"/k \"{cmd}\"") { UseShellExecute = true });
     }
 
+    internal static void ConfigureStart(ProcessStartInfo psi, string cliPath, IEnumerable<string> args)
+    {
+        var ext = Path.GetExtension(cliPath).ToLowerInvariant();
+        if (ext is ".cmd" or ".bat")
+        {
+            // npm installs a claude.cmd shim. cmd.exe has its own quoting: with /s the outer quotes are removed
+            // as a pair, so every part can be quoted (paths with spaces, empty values, & in values).
+            // Double quotes cannot be escaped for cmd, so they are dropped from values.
+            static string Q(string s) => "\"" + s.Replace("\"", "") + "\"";
+            psi.FileName = "cmd.exe";
+            psi.Arguments = "/d /s /c \"" + string.Join(" ", args.Prepend(cliPath).Select(Q)) + "\"";
+        }
+        else
+        {
+            psi.FileName = cliPath;
+            foreach (var a in args) psi.ArgumentList.Add(a);
+        }
+    }
+
     private static async Task<(int code, string stdout, string stderr)> RunAsync(
         ClaudeOptions options, IEnumerable<string> args, string? stdin, CancellationToken ct)
     {
@@ -129,18 +161,7 @@ public sealed class ClaudeService
             StandardInputEncoding = new UTF8Encoding(false),
             WorkingDirectory = Directory.Exists(options.WorkingDirectory) ? options.WorkingDirectory : Path.GetTempPath(),
         };
-        var ext = Path.GetExtension(options.CliPath).ToLowerInvariant();
-        if (ext is ".cmd" or ".bat")
-        {
-            psi.FileName = "cmd.exe";
-            psi.ArgumentList.Add("/c");
-            psi.ArgumentList.Add(options.CliPath);
-        }
-        else
-        {
-            psi.FileName = options.CliPath;
-        }
-        foreach (var a in args) psi.ArgumentList.Add(a);
+        ConfigureStart(psi, options.CliPath, args);
 
         if (options.Mode == ClaudeAuthMode.ApiKey && !string.IsNullOrWhiteSpace(options.ApiKey))
             psi.Environment["ANTHROPIC_API_KEY"] = options.ApiKey.Trim();

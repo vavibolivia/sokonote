@@ -7,7 +7,7 @@
         xmlns:vm="clr-namespace:SokoNote.ViewModels"
         xmlns:models="clr-namespace:SokoNote.Models"
         Title="{DynamicResource S.AppName}" Width="1400" Height="880" MinWidth="1040" MinHeight="620"
-        Icon="pack://application:,,,/Assets/app.ico" Background="{StaticResource CanvasBg}"
+        Icon="pack://application:,,,/SokoNote;component/Assets/app.ico" Background="{StaticResource CanvasBg}"
         FontFamily="{StaticResource UiFont}" FontSize="13" TextOptions.TextFormattingMode="Display"
         UseLayoutRounding="True" SnapsToDevicePixels="True" WindowStartupLocation="CenterScreen">
 
@@ -38,6 +38,24 @@
     </Window.InputBindings>
 
     <Window.Resources>
+        <!-- Context menus live here, not inside Setter.Value: the XAML compiler wires Click handlers inside
+             a setter to the wrong element (connectionId mix-up → InvalidCastException when list items are created). -->
+        <ContextMenu x:Key="TopicMenu">
+            <MenuItem Header="{DynamicResource S.Rename}" Click="TopicRename_Click"/>
+            <MenuItem Header="{DynamicResource S.ChangeColor}" Click="TopicColor_Click"/>
+            <Separator/>
+            <MenuItem Header="{DynamicResource S.MoveUp}" Click="TopicUp_Click"/>
+            <MenuItem Header="{DynamicResource S.MoveDown}" Click="TopicDown_Click"/>
+            <Separator/>
+            <MenuItem Header="{DynamicResource S.DeleteTopic}" Click="TopicDelete_Click"/>
+        </ContextMenu>
+        <ContextMenu x:Key="EntryMenu">
+            <MenuItem Header="{DynamicResource S.Duplicate}" Click="EntryDuplicate_Click"/>
+            <MenuItem Header="{DynamicResource S.MoveToToday}" Click="EntryMoveToday_Click"/>
+            <Separator/>
+            <MenuItem Header="{DynamicResource S.DeleteEntry}" Click="EntryDelete_Click"/>
+        </ContextMenu>
+
         <!-- topic row -->
         <DataTemplate x:Key="TopicTemplate" DataType="{x:Type models:Topic}">
             <DockPanel>
@@ -50,19 +68,7 @@
         </DataTemplate>
 
         <Style x:Key="TopicItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource TopicItem}">
-            <Setter Property="ContextMenu">
-                <Setter.Value>
-                    <ContextMenu>
-                        <MenuItem Header="{DynamicResource S.Rename}" Click="TopicRename_Click"/>
-                        <MenuItem Header="{DynamicResource S.ChangeColor}" Click="TopicColor_Click"/>
-                        <Separator/>
-                        <MenuItem Header="{DynamicResource S.MoveUp}" Click="TopicUp_Click"/>
-                        <MenuItem Header="{DynamicResource S.MoveDown}" Click="TopicDown_Click"/>
-                        <Separator/>
-                        <MenuItem Header="{DynamicResource S.DeleteTopic}" Click="TopicDelete_Click"/>
-                    </ContextMenu>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="ContextMenu" Value="{StaticResource TopicMenu}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsAll}" Value="True">
                     <Setter Property="ContextMenu" Value="{x:Null}"/>
@@ -101,16 +107,7 @@
         </DataTemplate>
 
         <Style x:Key="EntryItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource EntryItem}">
-            <Setter Property="ContextMenu">
-                <Setter.Value>
-                    <ContextMenu>
-                        <MenuItem Header="{DynamicResource S.Duplicate}" Click="EntryDuplicate_Click"/>
-                        <MenuItem Header="{DynamicResource S.MoveToToday}" Click="EntryMoveToday_Click"/>
-                        <Separator/>
-                        <MenuItem Header="{DynamicResource S.DeleteEntry}" Click="EntryDelete_Click"/>
-                    </ContextMenu>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="ContextMenu" Value="{StaticResource EntryMenu}"/>
         </Style>
 
         <!-- chat bubble -->
@@ -164,7 +161,7 @@
         <Border Grid.Column="0" Background="{StaticResource SidebarBg}">
             <DockPanel Margin="12,14,12,12">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,0,0,14">
-                    <Image Source="pack://application:,,,/Assets/app.png" Width="26" Height="26" Margin="0,0,9,0"/>
+                    <Image Source="pack://application:,,,/SokoNote;component/Assets/app.png" Width="26" Height="26" Margin="0,0,9,0"/>
                     <TextBlock Text="{DynamicResource S.AppName}" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
                 </StackPanel>
 
@@ -220,7 +217,8 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="14,14,14,0">
                     <DockPanel>
-                        <ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToolToggle}" IsChecked="{Binding IsReadAllMode}" ToolTip="{DynamicResource S.ReadAllHint}" Padding="8,0">
+                        <ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToolToggle}" IsChecked="{Binding IsReadAllMode}" ToolTip="{DynamicResource S.ReadAllHint}" Padding="8,0"
+                                      Visibility="{Binding IsPageMode, Converter={StaticResource BoolToVisInv}}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE736;" Style="{StaticResource Icon}" Margin="0,0,5,0"/>
                                 <TextBlock Text="{DynamicResource S.ReadAll}" VerticalAlignment="Center"/>
@@ -228,13 +226,14 @@
                         </ToggleButton>
                         <Border Background="{StaticResource Line}" CornerRadius="8" HorizontalAlignment="Left">
                             <StackPanel Orientation="Horizontal">
-                                <RadioButton Style="{StaticResource Segment}" Content="{DynamicResource S.ByDate}" IsChecked="{Binding IsDateMode}"/>
-                                <RadioButton Style="{StaticResource Segment}" Content="{DynamicResource S.All}" IsChecked="{Binding IsDateMode, Converter={StaticResource InverseBool}}"/>
+                                <RadioButton Style="{StaticResource Segment}" Content="{DynamicResource S.ByDate}" IsChecked="{Binding IsByDateView}"/>
+                                <RadioButton Style="{StaticResource Segment}" Content="{DynamicResource S.All}" IsChecked="{Binding IsAllView}"/>
+                                <RadioButton Style="{StaticResource Segment}" Content="{DynamicResource S.OnePage}" IsChecked="{Binding IsPageMode}" ToolTip="{DynamicResource S.OnePageHint}"/>
                             </StackPanel>
                         </Border>
                     </DockPanel>
 
-                    <DockPanel Margin="0,10,0,0" Visibility="{Binding IsDateMode, Converter={StaticResource BoolToVis}}">
+                    <DockPanel x:Name="DateNavPanel" Margin="0,10,0,0">
                         <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Content="{DynamicResource S.Today}" Command="{x:Static views:AppCommands.Today}" FontSize="12"/>
                         <Button DockPanel.Dock="Left" Style="{StaticResource ToolButton}" Command="{x:Static views:AppCommands.PrevDay}" ToolTip="{DynamicResource S.PrevDay}">
                             <TextBlock Text="&#xE76B;" Style="{StaticResource Icon}" FontSize="12"/>
@@ -260,7 +259,7 @@
                         </Popup>
                     </DockPanel>
 
-                    <DockPanel Margin="0,10,0,0">
+                    <DockPanel Margin="0,10,0,0" Visibility="{Binding IsPageMode, Converter={StaticResource BoolToVisInv}}">
                         <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Command="{x:Static views:AppCommands.NewEntry}" Height="28" Padding="10,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE710;" Style="{StaticResource Icon}" FontSize="11" Margin="0,0,6,0"/>
@@ -274,7 +273,24 @@
                     <TextBlock Text="{Binding ListSubtitle}" Style="{StaticResource Caption}" Margin="2,2,0,10"/>
                 </StackPanel>
 
-                <Grid>
+                <ListBox x:Name="PageDayList" ItemsSource="{Binding PageDays}" Background="Transparent" BorderThickness="0" Padding="14,0,14,8"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="PageDayList_SelectionChanged"
+                         Visibility="{Binding IsPageMode, Converter={StaticResource BoolToVis}}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="2,5">
+                                <Border DockPanel.Dock="Right" Background="{StaticResource Accent}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                                        Visibility="{Binding IsToday, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource S.Today}" Foreground="White" FontSize="10.5"/>
+                                </Border>
+                                <TextBlock Text="&#xE787;" Style="{StaticResource Icon}" FontSize="12" Foreground="{StaticResource InkMuted}" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding Label}" FontSize="13" Foreground="{StaticResource Ink}" VerticalAlignment="Center"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Grid Visibility="{Binding IsPageMode, Converter={StaticResource BoolToVisInv}}">
                     <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}" ItemTemplate="{StaticResource EntryTemplate}"
                              ItemContainerStyle="{StaticResource EntryItemStyle}" Background="Transparent" BorderThickness="0" Padding="14,0,14,8"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.ScrollUnit="Pixel" KeyDown="EntryList_KeyDown"/>
@@ -336,14 +352,14 @@
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                 </Button>
-                                <Button Style="{StaticResource ToolButton}" ToolTip="{DynamicResource S.DeleteEntry}" Command="{x:Static views:AppCommands.DeleteEntry}" Foreground="{StaticResource Danger}">
+                                <Button x:Name="DeleteEntryButton" Style="{StaticResource ToolButton}" ToolTip="{DynamicResource S.DeleteEntry}" Command="{x:Static views:AppCommands.DeleteEntry}" Foreground="{StaticResource Danger}">
                                     <TextBlock Text="&#xE74D;" Style="{StaticResource Icon}"/>
                                 </Button>
                             </StackPanel>
                             <TextBox x:Name="TitleBox" Style="{StaticResource TitleBox}" Tag="{DynamicResource S.TitlePlaceholder}" MaxLength="200"
                                      Text="{Binding CurrentEntry.Title, UpdateSourceTrigger=PropertyChanged}" KeyDown="TitleBox_KeyDown"/>
                         </DockPanel>
-                        <WrapPanel Margin="2,6,0,0">
+                        <WrapPanel x:Name="EntryMetaPanel" Margin="2,6,0,0">
                             <StackPanel Orientation="Horizontal" Margin="0,0,14,4">
                                 <TextBlock Text="{DynamicResource S.Topic}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <ComboBox x:Name="TopicCombo" ItemsSource="{Binding RealTopics}" SelectedValuePath="Id" MinWidth="140" SelectionChanged="TopicCombo_SelectionChanged">
@@ -545,6 +561,12 @@
                                 <Hyperlink Click="ClaudeAccount_Click" Foreground="{StaticResource Accent}" TextDecorations="{x:Null}">
                                     <Run Text="&#xE77B;" FontFamily="{StaticResource IconFont}"/>
                                     <Run Text="{Binding AccountLabel, Mode=OneWay}"/>
+                                </Hyperlink>
+                            </TextBlock>
+                            <TextBlock Margin="0,4,0,0" FontSize="11.5" TextTrimming="CharacterEllipsis">
+                                <Hyperlink Click="ClaudeWeb_Click" Foreground="{StaticResource Accent}" TextDecorations="{x:Null}" ToolTip="{DynamicResource S.ClaudeWeb.OpenHint}">
+                                    <Run Text="&#xE774;" FontFamily="{StaticResource IconFont}"/>
+                                    <Run Text="{DynamicResource S.ClaudeWeb.Open}"/>
                                 </Hyperlink>
                             </TextBlock>
                         </StackPanel>

@@ -53,6 +53,9 @@ public partial class MainWindow : Window
     private bool _syncingToolbar;
     private Entry? _subscribed;
     private string _colorTarget = "fore";
+    private int _dividerCount;
+    private DateTime _today = DateTime.Today;
+    private readonly DispatcherTimer _dayTimer;
     private static List<FontItem>? _fontCache;
 
     public MainWindow()
@@ -74,7 +77,12 @@ public partial class MainWindow : Window
             UpdateWordCount();
         };
 
+        _dayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _dayTimer.Tick += (_, _) => CheckDayChanged();
+        _dayTimer.Start();
+
         _vm.OpenEntryRequested += (_, e) => LoadEntry(e);
+        _vm.PageDayRequested += (_, day) => JumpToDay(day, createIfToday: true);
         _vm.BeforeNavigate += (_, _) => SaveNow();
         _vm.PropertyChanged += Vm_PropertyChanged;
         _vm.Claude.FlushEditor = SaveNow;
@@ -112,6 +120,16 @@ public partial class MainWindow : Window
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         SaveNow();
+        if (_dirty && _vm.CurrentEntry is not null)
+        {
+            var r = MessageBox.Show(this, Loc.F("S.CloseUnsaved", SaveStatus.Text), Loc.T("S.AppName"),
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (r != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
         SaveWindowState();
     }
 
@@ -220,6 +238,10 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.ListSubtitle):
                 if (_vm.IsReadAllMode) BuildReadAll();
                 break;
+            case nameof(MainViewModel.IsDateMode):
+            case nameof(MainViewModel.IsPageMode):
+                DateNavPanel.Visibility = _vm.IsDateMode || _vm.IsPageMode ? Visibility.Visible : Visibility.Collapsed;
+                break;
             case nameof(MainViewModel.SelectedDate):
                 if (DateCalendar.SelectedDate != _vm.SelectedDate)
                 {
@@ -259,9 +281,12 @@ public partial class MainWindow : Window
             else
             {
                 var doc = new FlowDocument { FontFamily = Editor.FontFamily, FontSize = Editor.FontSize };
-                DocumentService.Load(doc, full.Content);
+                if (full.IsPage) PageService.Load(doc, full.Content, Loc.Language);
+                else DocumentService.Load(doc, full.Content);
                 if (doc.Blocks.Count == 0) doc.Blocks.Add(new Paragraph());
                 Editor.Document = doc;
+                EntryMetaPanel.Visibility = full.IsPage ? Visibility.Collapsed : Visibility.Visible;
+                DeleteEntryButton.Visibility = full.IsPage ? Visibility.Collapsed : Visibility.Visible;
                 ApplyPaper(full.PaperColor, full.PaperStyle);
                 TopicCombo.SelectedValue = full.TopicId;
                 EntryDatePicker.SelectedDate = full.EntryDate;
@@ -273,6 +298,7 @@ public partial class MainWindow : Window
             }
             Editor.IsUndoEnabled = true;
             _dirty = false;
+            _dividerCount = PageService.CountDividers(Editor.Document);
             UpdateEditorVisibility();
             UpdateWordCount();
             SyncToolbar();
@@ -280,6 +306,13 @@ public partial class MainWindow : Window
         finally
         {
             _loading = false;
+        }
+        if (_vm.CurrentEntry is { IsPage: true })
+        {
+            // a page always opens on a day: the selected one if it has a section, otherwise today (created if needed)
+            var target = PageService.Days(Editor.Document).Any(d => d.Day == _vm.SelectedDate.Date) ? _vm.SelectedDate.Date : DateTime.Today;
+            JumpToDay(target, createIfToday: true);
+            return;
         }
         if (entry is not null && entry.PlainText.Length == 0 && string.IsNullOrEmpty(entry.Title) && entry.CreatedAt > DateTime.Now.AddSeconds(-5))
             Dispatcher.BeginInvoke(() => { TitleBox.Focus(); }, DispatcherPriority.Input);
@@ -309,8 +342,8 @@ public partial class MainWindow : Window
         var entry = _vm.CurrentEntry;
         try
         {
-            entry.Content = DocumentService.Save(Editor.Document);
-            entry.PlainText = DocumentService.GetPlainText(Editor.Document);
+            entry.Content = entry.IsPage ? PageService.Save(Editor.Document) : DocumentService.Save(Editor.Document);
+            entry.PlainText = entry.IsPage ? PageService.GetPlainText(Editor.Document, Loc.Language) : DocumentService.GetPlainText(Editor.Document);
             entry.Title = entry.Title.Trim();
             _vm.Repo.UpdateEntry(entry);
             _dirty = false;
@@ -334,6 +367,24 @@ public partial class MainWindow : Window
     private void Editor_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_loading) return;
+        if (_vm.CurrentEntry is { IsPage: true })
+        {
+            var n = PageService.CountDividers(Editor.Document);
+            if (n < _dividerCount)
+            {
+                // a date divider was removed (cut, drag, typing over a selection…): take the edit back
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (Editor.CanUndo) Editor.Undo();
+                    _dividerCount = PageService.CountDividers(Editor.Document);
+                    SaveStatus.Text = Loc.T("S.PageDividerLocked");
+                    RefreshPageDays();
+                }, DispatcherPriority.Send);
+                return;
+            }
+            if (n != _dividerCount) RefreshPageDays();
+            _dividerCount = n;
+        }
         MarkDirty();
         _countTimer.Stop();
         _countTimer.Start();
@@ -435,11 +486,17 @@ public partial class MainWindow : Window
 
     private void DeleteEntry_Executed(object sender, ExecutedRoutedEventArgs e)
     {
-        if (_vm.CurrentEntry is { } entry) DeleteEntryInteractive(entry);
+        if (_vm.CurrentEntry is { IsPage: false } entry) DeleteEntryInteractive(entry);
     }
 
     private void SearchBox_KeyDown(object sender, KeyEventArgs e)
     {
+        if (_vm.IsPageMode && e.Key == Key.Enter && _vm.CurrentEntry is { IsPage: true })
+        {
+            SearchInPage(_vm.SearchText);
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape)
         {
             _vm.SearchText = "";
@@ -475,7 +532,7 @@ public partial class MainWindow : Window
 
     private Topic? AddTopicInteractive()
     {
-        var dlg = new TopicDialog(this, null, null);
+        var dlg = new TopicDialog(this, null, null, name => _vm.Repo.TopicNameExists(name));
         if (dlg.ShowDialog() != true) return null;
         return _vm.AddTopic(dlg.TopicName, dlg.Color);
     }
@@ -489,7 +546,7 @@ public partial class MainWindow : Window
 
     private void EditTopic(Topic t)
     {
-        var dlg = new TopicDialog(this, t.Name, t.Color);
+        var dlg = new TopicDialog(this, t.Name, t.Color, name => _vm.Repo.TopicNameExists(name, t.Id));
         if (dlg.ShowDialog() != true) return;
         if (dlg.TopicName != t.Name) _vm.RenameTopic(t, dlg.TopicName);
         if (!string.Equals(dlg.Color, t.Color, StringComparison.OrdinalIgnoreCase)) _vm.SetTopicColor(t, dlg.Color);
@@ -520,7 +577,9 @@ public partial class MainWindow : Window
         if (TopicFromMenu(sender) is not { IsAll: false } t) return;
         var r = MessageBox.Show(this, Loc.F("S.DeleteTopicConfirm", t.Name, t.EntryCount), Loc.T("S.DeleteTopic"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         if (r != MessageBoxResult.Yes) return;
-        _dirty = false; // the open entry may belong to this topic; do not resurrect it
+        // the open entry may belong to this topic: do not resurrect it; otherwise keep its pending edits
+        if (_vm.CurrentEntry?.TopicId == t.Id) _dirty = false;
+        else SaveNow();
         _vm.DeleteTopic(t);
     }
 
@@ -740,7 +799,17 @@ public partial class MainWindow : Window
         {
             var brush = hex is null ? Editor.Foreground : DocumentService.BrushFromHex(hex);
             FontColorBar.Fill = brush;
-            ApplyToSelection(TextElement.ForegroundProperty, brush);
+            if (hex is null && !Editor.Selection.IsEmpty && _vm.CurrentEntry is not null)
+            {
+                // automatic: drop explicit colors so the text keeps following the paper's ink
+                DocumentService.ClearForeground(Editor.Selection);
+                MarkDirty();
+                Editor.Focus();
+            }
+            else
+            {
+                ApplyToSelection(TextElement.ForegroundProperty, brush);
+            }
         }
         else
         {
@@ -880,7 +949,7 @@ public partial class MainWindow : Window
             var text = string.IsNullOrWhiteSpace(dlg.LinkText) ? dlg.Url.ToString() : dlg.LinkText;
             if (!sel.IsEmpty) sel.Text = "";
             var insertAt = sel.Start;
-            var link = new Hyperlink(new Run(text), insertAt) { NavigateUri = dlg.Url };
+            var link = DocumentService.InsertHyperlink(insertAt, text, dlg.Url);
             Editor.CaretPosition = link.ElementEnd;
             Editor.Selection.Select(link.ElementEnd, link.ElementEnd);
         }
@@ -938,12 +1007,23 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private static void OpenUri(Uri? uri)
+    private void OpenUri(Uri? uri)
     {
         if (uri is null) return;
         try
         {
-            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            switch (LinkNormalizer.Classify(uri))
+            {
+                case LinkOpenAction.Open:
+                    Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+                    break;
+                case LinkOpenAction.Reveal:
+                    Process.Start(new ProcessStartInfo("explorer.exe") { ArgumentList = { "/select,", uri.LocalPath } });
+                    break;
+                default:
+                    SaveStatus.Text = Loc.F("S.LinkBlocked", uri.Scheme == "file" ? uri.LocalPath : uri.Scheme + ":");
+                    break;
+            }
         }
         catch (Exception ex)
         {
@@ -1010,6 +1090,12 @@ public partial class MainWindow : Window
     private void Editor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (_vm.CurrentEntry is null) return;
+        if (_vm.CurrentEntry.IsPage && WouldRemoveDivider(e.Key))
+        {
+            e.Handled = true;
+            SaveStatus.Text = Loc.T("S.PageDividerLocked");
+            return;
+        }
         if (e.Key is not (Key.Space or Key.Enter) || Keyboard.Modifiers != ModifierKeys.None) return;
         if (!Editor.Selection.IsEmpty) return;
         var caret = Editor.CaretPosition;
@@ -1041,7 +1127,7 @@ public partial class MainWindow : Window
                 Editor.BeginChange();
                 try
                 {
-                    var link = new Hyperlink(new Run(text.Trim()), Editor.CaretPosition) { NavigateUri = uri };
+                    var link = DocumentService.InsertHyperlink(Editor.CaretPosition, text.Trim(), uri);
                     Editor.CaretPosition = link.ElementEnd;
                 }
                 finally
@@ -1074,7 +1160,7 @@ public partial class MainWindow : Window
         {
             foreach (var f in files)
             {
-                var link = new Hyperlink(new Run(System.IO.Path.GetFileName(f)), pos) { NavigateUri = new Uri(f) };
+                var link = DocumentService.InsertHyperlink(pos, System.IO.Path.GetFileName(f), new Uri(f));
                 pos = link.ElementEnd;
                 pos.InsertTextInRun(" ");
                 pos = pos.GetPositionAtOffset(1) ?? pos;
@@ -1114,7 +1200,8 @@ public partial class MainWindow : Window
         try
         {
             using var fs = System.IO.File.Create(dlg.FileName);
-            new TextRange(Editor.Document.ContentStart, Editor.Document.ContentEnd).Save(fs, DataFormats.Rtf);
+            var source = _vm.CurrentEntry.IsPage ? PageService.CloneForExport(Editor.Document, Loc.Language) : Editor.Document;
+            new TextRange(source.ContentStart, source.ContentEnd).Save(fs, DataFormats.Rtf);
             SaveStatus.Text = Loc.F("S.ExportDone", dlg.FileName);
         }
         catch (Exception ex)
@@ -1132,7 +1219,9 @@ public partial class MainWindow : Window
         try
         {
             var header = $"{_vm.CurrentEntry.Title}\r\n[{_vm.CurrentEntry.TopicName}] {Loc.LongDate(_vm.CurrentEntry.EntryDate)} · {Loc.T("S.Status." + _vm.CurrentEntry.Status)}\r\n\r\n";
-            System.IO.File.WriteAllText(dlg.FileName, header + DocumentService.GetPlainText(Editor.Document));
+            var body = _vm.CurrentEntry.IsPage ? DocumentService.GetPlainText(PageService.CloneForExport(Editor.Document, Loc.Language))
+                : DocumentService.GetPlainText(Editor.Document);
+            System.IO.File.WriteAllText(dlg.FileName, header + body);
             SaveStatus.Text = Loc.F("S.ExportDone", dlg.FileName);
         }
         catch (Exception ex)
@@ -1145,7 +1234,8 @@ public partial class MainWindow : Window
     {
         if (_vm.CurrentEntry is null) return;
         SaveNow();
-        PrintDocument(DocumentService.Save(Editor.Document), _vm.CurrentEntry.Title);
+        var source = _vm.CurrentEntry.IsPage ? PageService.CloneForExport(Editor.Document, Loc.Language) : Editor.Document;
+        PrintDocument(DocumentService.Save(source), _vm.CurrentEntry.Title);
     }
 
     private void PrintDocument(byte[] content, string title)
@@ -1235,7 +1325,58 @@ public partial class MainWindow : Window
 
     private void ChatInsert_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not ChatMessage m || _vm.CurrentEntry is null) return;
+        if ((sender as FrameworkElement)?.DataContext is ChatMessage m) InsertTextIntoEntry(m.Content);
+    }
+
+    private ClaudeWebWindow? _claudeWeb;
+
+    /// <summary>claude.ai in an embedded browser: ask about the journal with the user's own Claude login, no API key.</summary>
+    private void ClaudeWeb_Click(object sender, RoutedEventArgs e)
+    {
+        if (_claudeWeb is { IsLoaded: true })
+        {
+            if (_claudeWeb.WindowState == WindowState.Minimized) _claudeWeb.WindowState = WindowState.Normal;
+            _claudeWeb.Activate();
+            return;
+        }
+        _claudeWeb = new ClaudeWebWindow(this, (scope, question) =>
+        {
+            SaveNow();
+            var entries = _vm.Claude.CollectEntries(scope);
+            var prompt = ClaudePromptBuilder.Build(question, entries, Loc.T("S.Claude.Scope." + scope),
+                Array.Empty<ChatMessage>(), DateTime.Today, Loc.Language);
+            return (prompt, entries.Count);
+        }, InsertTextIntoEntry);
+        _claudeWeb.Closed += (_, _) => _claudeWeb = null;
+        _claudeWeb.Show();
+    }
+
+    /// <summary>Appends plain text as new paragraphs at the end of the open entry. False when no entry is open.</summary>
+    private bool InsertTextIntoEntry(string text)
+    {
+        if (_vm.CurrentEntry is null || _vm.IsReadAllMode) return false;
+        if (_vm.CurrentEntry.IsPage)
+        {
+            Editor.BeginChange();
+            try
+            {
+                var anchor = PageService.EnsureDay(Editor.Document, DateTime.Today, Loc.Language)!;
+                foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+                {
+                    var p = new Paragraph(new Run(line));
+                    Editor.Document.Blocks.InsertAfter(anchor, p);
+                    anchor = p;
+                }
+                Editor.CaretPosition = anchor.ContentEnd;
+            }
+            finally
+            {
+                Editor.EndChange();
+            }
+            MarkDirty();
+            Editor.Focus();
+            return true;
+        }
         Editor.BeginChange();
         try
         {
@@ -1243,7 +1384,7 @@ public partial class MainWindow : Window
             var last = doc.Blocks.LastBlock;
             var empty = last is Paragraph lp && new TextRange(lp.ContentStart, lp.ContentEnd).Text.Length == 0;
             if (!empty) doc.Blocks.Add(new Paragraph());
-            foreach (var line in m.Content.Replace("\r\n", "\n").Split('\n'))
+            foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
                 doc.Blocks.Add(new Paragraph(new Run(line)));
             Editor.CaretPosition = doc.ContentEnd;
         }
@@ -1254,6 +1395,151 @@ public partial class MainWindow : Window
         MarkDirty();
         Editor.Focus();
         Editor.ScrollToEnd();
+        return true;
+    }
+
+    // ================================================================ one page per topic
+
+    /// <summary>Puts the caret at the end of <paramref name="day"/>'s section (creating today's divider when asked).</summary>
+    internal bool JumpToDay(DateTime day, bool createIfToday)
+    {
+        if (_vm.CurrentEntry is not { IsPage: true }) return false;
+        var doc = Editor.Document;
+        Paragraph? target;
+        if (createIfToday && day.Date == DateTime.Today)
+        {
+            var before = PageService.CountDividers(doc);
+            Editor.BeginChange();
+            try { target = PageService.EnsureDay(doc, day, Loc.Language); }
+            finally { Editor.EndChange(); }
+            if (PageService.CountDividers(doc) != before)
+            {
+                _dividerCount = PageService.CountDividers(doc);
+                MarkDirty();
+            }
+        }
+        else
+        {
+            var divider = PageService.Days(doc).FirstOrDefault(d => d.Day == day.Date).Divider;
+            target = divider is null ? null : PageService.LastParagraphOfSection(doc, divider);
+        }
+        RefreshPageDays();
+        if (target is null)
+        {
+            SaveStatus.Text = Loc.F("S.PageDateNotFound", PageService.DayLabel(day, Loc.Language));
+            return false;
+        }
+        Editor.CaretPosition = target.ContentEnd;
+        Dispatcher.BeginInvoke(() =>
+        {
+            target.BringIntoView();
+            if (IsActive) Editor.Focus();
+        }, DispatcherPriority.Loaded);
+        return true;
+    }
+
+    private void SearchInPage(string query)
+    {
+        query = query.Trim();
+        if (query.Length == 0) return;
+        if (PageService.FindDay(Editor.Document, query) is { } divider)
+        {
+            var day = PageService.DayOf(divider)!.Value;
+            if (_vm.SelectedDate.Date == day) JumpToDay(day, createIfToday: false);
+            else _vm.SelectedDate = day; // raises PageDayRequested
+            return;
+        }
+        if (PageService.TryParseDateQuery(query, out _, out _, out _))
+        {
+            SaveStatus.Text = Loc.F("S.PageDateNotFound", query);
+            return;
+        }
+        // plain text: next occurrence after the caret, wrapping around
+        var found = FindText(Editor.CaretPosition, Editor.Document.ContentEnd, query) ?? FindText(Editor.Document.ContentStart, Editor.CaretPosition, query);
+        if (found is null)
+        {
+            SaveStatus.Text = Loc.F("S.PageTextNotFound", query);
+            return;
+        }
+        Editor.Selection.Select(found.Start, found.End);
+        Editor.Focus();
+        found.Start.Paragraph?.BringIntoView();
+    }
+
+    private static TextRange? FindText(TextPointer from, TextPointer to, string text)
+    {
+        for (var p = from; p is not null && p.CompareTo(to) < 0; p = p.GetNextContextPosition(LogicalDirection.Forward))
+        {
+            if (p.GetPointerContext(LogicalDirection.Forward) != TextPointerContext.Text) continue;
+            var run = p.GetTextInRun(LogicalDirection.Forward);
+            var i = run.IndexOf(text, StringComparison.CurrentCultureIgnoreCase);
+            if (i < 0) continue;
+            var start = p.GetPositionAtOffset(i)!;
+            return new TextRange(start, start.GetPositionAtOffset(text.Length)!);
+        }
+        return null;
+    }
+
+    private void RefreshPageDays()
+    {
+        if (_vm.CurrentEntry is not { IsPage: true })
+        {
+            if (_vm.PageDays.Count > 0) _vm.SetPageDays(Array.Empty<PageDay>());
+            return;
+        }
+        var today = DateTime.Today;
+        var days = PageService.Days(Editor.Document)
+            .Select(d => new PageDay(d.Day, d.Day.Year == today.Year ? PageService.DayLabel(d.Day, Loc.Language)
+                : PageService.YearLabel(d.Day.Year, Loc.Language) + " " + PageService.DayLabel(d.Day, Loc.Language), d.Day == today))
+            .Reverse() // newest first
+            .ToList();
+        if (days.SequenceEqual(_vm.PageDays)) return;
+        _vm.SetPageDays(days);
+    }
+
+    private void PageDayList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PageDayList.SelectedItem is not PageDay d) return;
+        PageDayList.SelectedItem = null; // a list of shortcuts, not a selection
+        if (_vm.SelectedDate.Date == d.Date) JumpToDay(d.Date, createIfToday: false);
+        else _vm.SelectedDate = d.Date;
+    }
+
+    /// <summary>Backspace/Delete next to a divider would delete it; so would typing over a selection that contains one.</summary>
+    private bool WouldRemoveDivider(Key key)
+    {
+        var sel = Editor.Selection;
+        if (!sel.IsEmpty)
+        {
+            // anything that replaces the selection: deletion, Enter, letters/digits, numpad, punctuation, Korean IME input
+            var replaces = key is Key.Back or Key.Delete or Key.Enter or Key.Space or Key.ImeProcessed
+                || (key >= Key.D0 && key <= Key.Z) || (key >= Key.NumPad0 && key <= Key.Divide) || key >= Key.Oem1;
+            return replaces && SelectionHasDivider(sel);
+        }
+        var para = sel.Start.Paragraph;
+        if (para is null) return false;
+        // compare by text, not symbol offsets: run boundaries sit between the caret and the paragraph edge
+        if (key == Key.Back && new TextRange(para.ContentStart, sel.Start).Text.Length == 0) return PageService.IsDivider(para.PreviousBlock);
+        if (key == Key.Delete && new TextRange(sel.Start, para.ContentEnd).Text.Length == 0) return PageService.IsDivider(para.NextBlock);
+        return false;
+    }
+
+    private bool SelectionHasDivider(TextRange sel) =>
+        Editor.Document.Blocks.Any(b => PageService.IsDivider(b) && b.ElementStart.CompareTo(sel.End) < 0 && b.ElementEnd.CompareTo(sel.Start) > 0);
+
+    /// <summary>Midnight passed while the app was open: today's divider appears and the caret follows.</summary>
+    private void CheckDayChanged()
+    {
+        var now = DateTime.Today;
+        if (now == _today) return;
+        var previous = _today;
+        _today = now;
+        if (_vm.IsPageMode || _vm.IsDateMode)
+        {
+            if (_vm.SelectedDate.Date == previous) _vm.SelectedDate = now; // follow the day (page: jumps; date mode: reloads)
+            else if (_vm.CurrentEntry is { IsPage: true }) JumpToDay(now, createIfToday: true);
+        }
+        RefreshPageDays();
     }
 
     // ================================================================ settings

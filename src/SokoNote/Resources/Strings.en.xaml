@@ -8,6 +8,15 @@
     <sys:String x:Key="S.EmptyList">Nothing to show.</sys:String>
     <sys:String x:Key="S.SearchResults">Results for "{0}"</sys:String>
     <sys:String x:Key="S.AllEntries">All entries</sys:String>
+    <sys:String x:Key="S.ListCountTruncated">{0} · showing the latest {1} (narrow by date or search)</sys:String>
+    <sys:String x:Key="S.OnePage">One page</sys:String>
+    <sys:String x:Key="S.OnePageHint">Each topic is one continuous page split by date. Date dividers are added automatically and cannot be edited. Type a date in the search box (e.g. 10/22 or 2026-10-22) and press Enter to jump to it.</sys:String>
+    <sys:String x:Key="S.PageTitle">{0} — one page</sys:String>
+    <sys:String x:Key="S.PagePickTopic">Pick a topic on the left</sys:String>
+    <sys:String x:Key="S.PageDayCount">{0} days · click a day to jump to it</sys:String>
+    <sys:String x:Key="S.PageDividerLocked">Date dividers cannot be deleted or edited.</sys:String>
+    <sys:String x:Key="S.PageDateNotFound">This page has nothing for {0}.</sys:String>
+    <sys:String x:Key="S.PageTextNotFound">Could not find "{0}".</sys:String>
     <sys:String x:Key="S.ListCount">{0} · {1} entries</sys:String>
     <sys:String x:Key="S.Status.Note">Note</sys:String>
     <sys:String x:Key="S.Status.InProgress">In progress</sys:String>
@@ -21,6 +30,9 @@
     <sys:String x:Key="S.Close">Close</sys:String>
     <sys:String x:Key="S.Error">Error</sys:String>
     <sys:String x:Key="S.ErrorStartup">The app could not start.&#10;{0}</sys:String>
+    <sys:String x:Key="S.DbDamaged">The data file is damaged and cannot be opened.&#10;{0}&#10;&#10;Restore the most recent good backup? (The damaged file is kept under a new name, not deleted.)</sys:String>
+    <sys:String x:Key="S.DbNoBackup">No usable backup was found, so nothing could be restored.</sys:String>
+    <sys:String x:Key="S.DbRestored">Restored from backup {0}. Anything written after that backup may be missing.</sys:String>
     <sys:String x:Key="S.ErrorUnexpected">An unexpected error occurred. Your work has been saved.&#10;{0}</sys:String>
 
     <!-- sidebar -->
@@ -41,6 +53,7 @@
     <sys:String x:Key="S.TopicName">Topic name</sys:String>
     <sys:String x:Key="S.TopicNamePlaceholder">e.g. Project A</sys:String>
     <sys:String x:Key="S.TopicColor">Color</sys:String>
+    <sys:String x:Key="S.TopicNameDuplicate">A topic named "{0}" already exists. Choose another name.</sys:String>
     <sys:String x:Key="S.TopicNameRequired">Enter a topic name.</sys:String>
     <sys:String x:Key="S.NeedTopicFirst">Add a topic on the left first.</sys:String>
 
@@ -92,6 +105,25 @@
     <sys:String x:Key="S.LinkUrl">URL</sys:String>
     <sys:String x:Key="S.LinkUrlPlaceholder">https://…</sys:String>
     <sys:String x:Key="S.LinkInvalid">Enter a valid URL (e.g. https://example.com).</sys:String>
+    <sys:String x:Key="S.ReadAllTruncated">Showing the latest {0} of {1} entries. Narrow it down by date, topic or search.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Open">Ask on the web (no API needed)</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.OpenHint">Opens claude.ai in a browser inside the app so you can ask about your journal with your own Claude account. No API key or Claude Code needed.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Title">Claude on the web — SokoNote</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.QuestionPlaceholder">What do you want to ask about your work? (e.g. summarize this month)</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Send">Insert with my work</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Insert">Selection → entry</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.New">New chat</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Loading">Opening claude.ai…</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Hint">Sign in to claude.ai once. Pick a scope, type your question and press [Insert with my work] to fill the message box, then review it and press Enter.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Inserted">Put {0} entries and your question into the message box. Review it and press Enter to send.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoInput">Could not find the message box (maybe not signed in yet). The content is on the clipboard: paste it with Ctrl+V.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.CopiedExternal">Copied {0} entries and your question to the clipboard and opened claude.ai in your browser. Paste with Ctrl+V.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NotClaude">Journal content is only ever put into claude.ai. Went back to claude.ai; press the button again.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoSelection">First select the part of the answer you want to add.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoEntry">Open the entry to add it to in the main window first.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.InsertedToEntry">Added the selection to the end of the open entry.</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.NoRuntime">The embedded browser (WebView2) could not start: {0}&#10;[Insert with my work] will copy the content and open claude.ai in your default browser instead.</sys:String>
+    <sys:String x:Key="S.LinkBlocked">For safety, this kind of link cannot be opened: {0}</sys:String>
     <sys:String x:Key="S.LinkHint">Ctrl+click to open</sys:String>
     <sys:String x:Key="S.Paper">Paper</sys:String>
     <sys:String x:Key="S.PaperColor">Paper color</sys:String>
@@ -107,6 +139,7 @@
     <sys:String x:Key="S.Words">{0} words · {1} chars</sys:String>
     <sys:String x:Key="S.Saved">Saved {0}</sys:String>
     <sys:String x:Key="S.Unsaved">Editing…</sys:String>
+    <sys:String x:Key="S.CloseUnsaved">Your changes could not be saved.&#10;&#10;{0}&#10;&#10;Close anyway? (unsaved changes will be lost)</sys:String>
     <sys:String x:Key="S.SaveFailed">Save failed: {0}</sys:String>
     <sys:String x:Key="S.NoEntrySelected">No entry selected</sys:String>
     <sys:String x:Key="S.NoEntryHint">Pick an entry on the left or press Ctrl+N to write one.</sys:String>

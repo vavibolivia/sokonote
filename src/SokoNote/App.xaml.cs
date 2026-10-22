@@ -10,7 +10,7 @@ public partial class App : Application
 {
     private static Mutex? _instanceMutex;
 
-    public static WorkLogRepository Repository { get; private set; } = null!;
+    public static WorkLogRepository Repository { get; internal set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -31,7 +31,7 @@ public partial class App : Application
         try
         {
             AppPaths.Init(dataDir);
-            Repository = new WorkLogRepository(AppPaths.DbPath);
+            Repository = OpenRepository();
             Loc.Apply(Loc.Resolve(Repository.GetSetting("ui.language")));
             Logger.Info($"Startup · data={AppPaths.DataDir} · lang={Loc.Language}");
             try { BackupService.RunDailyBackup(Repository); }
@@ -62,10 +62,44 @@ public partial class App : Application
         window.Show();
     }
 
+    /// <summary>Opens the database; when it is damaged, offers to fall back to the newest usable daily backup.</summary>
+    private static WorkLogRepository OpenRepository()
+    {
+        try
+        {
+            return new WorkLogRepository(AppPaths.DbPath);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            Logger.Error("Database could not be opened", ex);
+            Loc.Apply(Loc.DetectDefault()); // settings live in the broken db
+            var answer = MessageBox.Show(string.Format(Loc.T("S.DbDamaged"), ex.Message), "SokoNote",
+                MessageBoxButton.YesNo, MessageBoxImage.Error, MessageBoxResult.Yes);
+            if (answer != MessageBoxResult.Yes) throw;
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            var used = DatabaseRecovery.RestoreLatestBackup(AppPaths.DbPath, AppPaths.BackupDir);
+            if (used is null) throw new InvalidOperationException(Loc.T("S.DbNoBackup"), ex);
+            Logger.Info($"Restored database from {used}");
+            MessageBox.Show(string.Format(Loc.T("S.DbRestored"), System.IO.Path.GetFileName(used)), "SokoNote",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return new WorkLogRepository(AppPaths.DbPath);
+        }
+    }
+
+    private readonly Queue<DateTime> _recentErrors = new();
+    private bool _showingError;
+
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Logger.Error("Dispatcher exception", e.Exception);
         e.Handled = true;
+
+        // an error raised from layout repeats on every pass: save once and stop instead of looping dialogs
+        var now = DateTime.UtcNow;
+        _recentErrors.Enqueue(now);
+        while (_recentErrors.Count > 0 && now - _recentErrors.Peek() > TimeSpan.FromSeconds(5)) _recentErrors.Dequeue();
+        var storm = _recentErrors.Count > 20;
+        if (_showingError && !storm) return;
         try
         {
             (MainWindow as MainWindow)?.SaveNow();
@@ -74,8 +108,22 @@ public partial class App : Application
         {
             Logger.Error("Emergency save failed", ex);
         }
-        MessageBox.Show(string.Format(Loc.T("S.ErrorUnexpected"), e.Exception.Message), Loc.T("S.Error"),
-            MessageBoxButton.OK, MessageBoxImage.Warning);
+        if (storm)
+        {
+            Logger.Error("Repeated errors, shutting down after an emergency save");
+            Shutdown(2);
+            return;
+        }
+        _showingError = true;
+        try
+        {
+            MessageBox.Show(string.Format(Loc.T("S.ErrorUnexpected"), e.Exception.Message), Loc.T("S.Error"),
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _showingError = false;
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

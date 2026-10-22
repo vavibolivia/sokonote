@@ -32,6 +32,30 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _listTitle = "";
     [ObservableProperty] private string _listSubtitle = "";
     [ObservableProperty] private bool _isReadAllMode;
+    [ObservableProperty] private bool _isListTruncated;
+    [ObservableProperty] private bool _isPageMode;
+
+    /// <summary>Date dividers of the open topic page, shown as the middle list in page mode (filled by the window).</summary>
+    public ObservableCollection<PageDay> PageDays { get; } = new();
+
+    /// <summary>Raised in page mode when the user picks a day (list, calendar, previous/next): move the caret there.</summary>
+    public event EventHandler<DateTime>? PageDayRequested;
+
+    // three-way view switch: by date | all | one page
+    public bool IsByDateView
+    {
+        get => IsDateMode && !IsPageMode;
+        set { if (value) { IsPageMode = false; IsDateMode = true; } }
+    }
+
+    public bool IsAllView
+    {
+        get => !IsDateMode && !IsPageMode;
+        set { if (value) { IsPageMode = false; IsDateMode = false; } }
+    }
+
+    /// <summary>Most entries the middle list shows at once; more than that is reported in the subtitle.</summary>
+    public int ListLimit { get; set; } = 5000;
 
     /// <summary>Raised when the list selection asks the editor to open another entry (null closes it).</summary>
     public event EventHandler<Entry?>? OpenEntryRequested;
@@ -147,12 +171,26 @@ public partial class MainViewModel : ObservableObject
         if (!_suppressRefresh) RefreshEntries();
     }
 
-    partial void OnIsDateModeChanged(bool value) => RefreshEntries();
+    partial void OnIsDateModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsByDateView));
+        OnPropertyChanged(nameof(IsAllView));
+        RefreshEntries();
+    }
+
+    partial void OnIsPageModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsByDateView));
+        OnPropertyChanged(nameof(IsAllView));
+        if (value) IsReadAllMode = false;
+        RefreshEntries();
+    }
 
     partial void OnSelectedDateChanged(DateTime value)
     {
         OnPropertyChanged(nameof(SelectedDateText));
-        if (!_suppressRefresh) RefreshEntries();
+        if (IsPageMode) PageDayRequested?.Invoke(this, value.Date); // same page, other day
+        else if (!_suppressRefresh) RefreshEntries();
     }
 
     partial void OnStatusFilterIndexChanged(int value) => RefreshEntries();
@@ -160,6 +198,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         OnPropertyChanged(nameof(IsSearching));
+        if (IsPageMode) return; // in page mode the search box jumps to a date / text on Enter
         _searchDebounce.Stop();
         _searchDebounce.Start();
     }
@@ -174,7 +213,7 @@ public partial class MainViewModel : ObservableObject
 
     public EntryQuery BuildListQuery()
     {
-        var q = new EntryQuery { TopicId = SelectedTopicId };
+        var q = new EntryQuery { TopicId = SelectedTopicId, Limit = ListLimit + 1 }; // +1 tells whether more exist
         if (IsSearching) q.Search = SearchText;
         else if (IsDateMode) q.Date = SelectedDate.Date;
         if (StatusFilterIndex > 0) q.Status = (EntryStatus)(StatusFilterIndex - 1);
@@ -187,10 +226,17 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void RefreshEntries(long? keepId = null)
     {
+        if (IsPageMode)
+        {
+            ShowTopicPage();
+            return;
+        }
         BeforeNavigate?.Invoke(this, EventArgs.Empty);
         keepId ??= CurrentEntry?.Id;
 
         var list = Repo.QueryEntries(BuildListQuery());
+        IsListTruncated = list.Count > ListLimit;
+        if (IsListTruncated) list.RemoveRange(ListLimit, list.Count - ListLimit);
         _suppressRefresh = true;
         try
         {
@@ -214,6 +260,44 @@ public partial class MainViewModel : ObservableObject
         CalendarMarks.Set(Repo.GetEntryDates(SelectedTopicId));
     }
 
+    /// <summary>Page mode: the editor shows the selected topic's single page; the middle list shows its days.</summary>
+    private void ShowTopicPage()
+    {
+        BeforeNavigate?.Invoke(this, EventArgs.Empty);
+        _suppressRefresh = true;
+        try
+        {
+            Entries.Clear();
+            SelectedEntry = null;
+        }
+        finally
+        {
+            _suppressRefresh = false;
+        }
+        IsListTruncated = false;
+        if (SelectedTopic is { IsAll: false } topic)
+        {
+            var page = Repo.GetOrCreatePage(topic.Id);
+            ListTitle = Loc.F("S.PageTitle", topic.Name);
+            if (CurrentEntry?.Id != page.Id) OpenEntryRequested?.Invoke(this, page);
+        }
+        else
+        {
+            PageDays.Clear();
+            ListTitle = Loc.T("S.PagePickTopic");
+            if (CurrentEntry is not null) OpenEntryRequested?.Invoke(this, null);
+        }
+        ListSubtitle = Loc.F("S.PageDayCount", PageDays.Count);
+    }
+
+    /// <summary>Called by the window after it (re)built the page's day list.</summary>
+    public void SetPageDays(IEnumerable<PageDay> days)
+    {
+        PageDays.Clear();
+        foreach (var d in days) PageDays.Add(d);
+        if (IsPageMode) ListSubtitle = Loc.F("S.PageDayCount", PageDays.Count);
+    }
+
     private void UpdateListCaption()
     {
         if (IsSearching)
@@ -229,7 +313,9 @@ public partial class MainViewModel : ObservableObject
             ListTitle = Loc.T("S.AllEntries");
         }
         var topic = SelectedTopic is { IsAll: false } t ? t.Name : Loc.T("S.AllTopics");
-        ListSubtitle = Loc.F("S.ListCount", topic, Entries.Count);
+        ListSubtitle = IsListTruncated
+            ? Loc.F("S.ListCountTruncated", topic, Entries.Count)
+            : Loc.F("S.ListCount", topic, Entries.Count);
     }
 
     public Entry? CreateEntry(long topicId)
@@ -309,11 +395,23 @@ public partial class MainViewModel : ObservableObject
     public void DeleteEntry(Entry e)
     {
         Repo.DeleteEntry(e.Id);
-        if (CurrentEntry?.Id == e.Id) CurrentEntry = null;
+        if (CurrentEntry?.Id == e.Id)
+        {
+            // close the editor explicitly: when the list ends up empty nothing else would
+            CurrentEntry = null;
+            OpenEntryRequested?.Invoke(this, null);
+        }
         RefreshEntries();
         RefreshTopicCounts();
     }
 
-    public void GoToday() => SelectedDate = DateTime.Today;
+    public void GoToday()
+    {
+        if (IsPageMode && SelectedDate.Date == DateTime.Today) PageDayRequested?.Invoke(this, DateTime.Today);
+        SelectedDate = DateTime.Today;
+    }
     public void ShiftDay(int days) => SelectedDate = SelectedDate.AddDays(days);
 }
+
+/// <summary>One day of a topic page, as listed in the middle column.</summary>
+public sealed record PageDay(DateTime Date, string Label, bool IsToday);
