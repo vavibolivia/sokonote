@@ -24,6 +24,22 @@ public class PromptBuilderTests
     }
 
     [Fact]
+    public void A_page_is_not_labelled_with_one_date_and_status()
+    {
+        // regression: a page went to Claude as "### [A] <creation date> · … · status: Note", as if it were one day's note
+        var page = new Entry
+        {
+            IsPage = true, TopicName = "A", Title = "A — 한 장", EntryDate = new DateTime(2026, 1, 3),
+            PlainText = "맨 위 메모\n# 2026년\n## 2026-10-22 10월 22일 (목)\n배포",
+        };
+        var p = ClaudePromptBuilder.Build("q", new[] { page }, "all", Array.Empty<ChatMessage>(), DateTime.Today, "ko");
+        Assert.DoesNotContain("2026-01-03", p);
+        Assert.DoesNotContain("status: Note", p);
+        Assert.Contains("### [A] A — 한 장", p);
+        Assert.Contains("## 2026-10-22", p);                                     // per-day dates stay inside
+    }
+
+    [Fact]
     public void Empty_scope_and_untitled_entries()
     {
         var en = ClaudePromptBuilder.Build("q", Array.Empty<Entry>(), "all", Array.Empty<ChatMessage>(), DateTime.Today, "en");

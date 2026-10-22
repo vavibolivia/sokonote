@@ -242,8 +242,11 @@ public static class ClaudePromptBuilder
         foreach (var e in entries)
         {
             var block = new StringBuilder();
-            block.AppendLine(CultureInfo.InvariantCulture,
-                $"### [{e.TopicName}] {e.EntryDate:yyyy-MM-dd} · {(string.IsNullOrWhiteSpace(e.Title) ? "(untitled)" : e.Title)} · status: {e.Status}");
+            var title = string.IsNullOrWhiteSpace(e.Title) ? "(untitled)" : e.Title;
+            // a topic page spans many days: its dates are the "## yyyy-MM-dd" lines inside, not one date/status for all
+            block.AppendLine(e.IsPage
+                ? $"### [{e.TopicName}] {title} (one continuous page; '## date' lines mark days, text above the first one has no date)"
+                : string.Create(CultureInfo.InvariantCulture, $"### [{e.TopicName}] {e.EntryDate:yyyy-MM-dd} · {title} · status: {e.Status}"));
             block.AppendLine(e.PlainText.Trim());
             block.AppendLine();
             if (used + block.Length > MaxContextChars)
