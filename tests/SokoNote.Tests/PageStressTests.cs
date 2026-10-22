@@ -101,6 +101,20 @@ public class PageStressTests
     });
 
     [Fact]
+    public void Opening_a_three_year_page_stays_snappy() => Sta.Run(() =>
+    {
+        // the marker scan used to read every paragraph's text; only candidates are read now
+        var bytes = PageService.Save(BuildPage(new DateTime(2024, 1, 1), 1096, 3));
+        PageService.Load(new FlowDocument(), bytes, "ko");                     // warm-up
+        var sw = Stopwatch.StartNew();
+        var doc = new FlowDocument();
+        PageService.Load(doc, bytes, "ko");
+        var load = sw.Elapsed;
+        Assert.Equal(1096, PageService.Days(doc).Count);
+        Assert.True(load < TimeSpan.FromSeconds(3), $"open took {load.TotalMilliseconds:F0} ms"); // ~0.3 s here; loose for CI
+    });
+
+    [Fact]
     public void Repeated_save_load_cycles_do_not_drift() => Sta.Run(() =>
     {
         var doc = BuildPage(new DateTime(2026, 9, 1), 40, 2);

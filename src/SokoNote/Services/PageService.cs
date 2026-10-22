@@ -362,6 +362,8 @@ public static class PageService
         DocumentService.Load(doc, data);
         foreach (var p in doc.Blocks.OfType<Paragraph>().ToList())
         {
+            // cheap pre-check (most paragraphs are ordinary text): markers start with "[[soko" in their first run
+            if (p.Inlines.FirstInline is not Run { Text: var firstRun } || !firstRun.TrimStart().StartsWith("[[soko", StringComparison.Ordinal)) continue;
             var text = new TextRange(p.ContentStart, p.ContentEnd).Text.Trim();
             if (text.Length > 0 && text[^1] == MarkerEscape && Marker.IsMatch(text[..^1]))
             {
