@@ -386,3 +386,25 @@ public enum LinkOpenAction
     /// <summary>Unsupported scheme or network path: do nothing.</summary>
     Block,
 }
+
+/// <summary>File names and text headers for exports; a topic page is named by topic, an entry by its date and title.</summary>
+public static class ExportNaming
+{
+    public static string FileName(Entry entry, DateTime today)
+    {
+        var name = entry.IsPage
+            ? $"{today:yyyy-MM-dd} {Loc.F("S.PageTitle", entry.TopicName)}"
+            : $"{entry.EntryDate:yyyy-MM-dd} {(string.IsNullOrWhiteSpace(entry.Title) ? Loc.T("S.Untitled") : entry.Title)}";
+        foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+        return name;
+    }
+
+    /// <summary>First lines of a .txt export (a page spans many days, so it has no single date or status).</summary>
+    public static string TextHeader(Entry entry)
+    {
+        var nl = Environment.NewLine;
+        return entry.IsPage
+            ? Loc.F("S.PageTitle", entry.TopicName) + nl + nl
+            : entry.Title + nl + $"[{entry.TopicName}] {Loc.LongDate(entry.EntryDate)} · {Loc.T("S.Status." + entry.Status)}" + nl + nl;
+    }
+}

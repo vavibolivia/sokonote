@@ -273,5 +273,28 @@ public class DocumentTests
     });
 
     [Fact]
+    public void Export_names_a_page_by_topic_and_export_day() => UiThread.Run(() => // real strings
+    {
+        // regression: a page exported as "<creation date> (제목 없음)" with a "· 메모" status header
+        var page = new Models.Entry { IsPage = true, TopicName = "프로젝트/A", EntryDate = new DateTime(2026, 1, 3) };
+        var today = new DateTime(2026, 10, 22);
+        Assert.Equal("2026-10-22 프로젝트_A — 한 장", ExportNaming.FileName(page, today));
+        var header = ExportNaming.TextHeader(page);
+        Assert.StartsWith("프로젝트/A — 한 장", header);
+        Assert.DoesNotContain("2026", header);                                     // no single date for a whole page
+        Assert.DoesNotContain(Loc.T("S.Status.Note"), header);
+    });
+
+    [Fact]
+    public void Export_names_an_entry_by_date_and_title() => UiThread.Run(() =>
+    {
+        var entry = new Models.Entry { TopicName = "A", Title = "회의: 결과?", EntryDate = new DateTime(2026, 10, 21), Status = Models.EntryStatus.Done };
+        Assert.Equal("2026-10-21 회의_ 결과_", ExportNaming.FileName(entry, DateTime.Today));
+        var header = ExportNaming.TextHeader(entry);
+        Assert.Contains("회의: 결과?", header);
+        Assert.Contains(Loc.T("S.Status.Done"), header);
+    });
+
+    [Fact]
     public void Word_count() => Assert.Equal(4, DocumentService.CountWords(" 오늘  회의\n정리\t끝 "));
 }

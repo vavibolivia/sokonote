@@ -1191,12 +1191,7 @@ public partial class MainWindow : Window
         ExportButton.ContextMenu.IsOpen = true;
     }
 
-    private string SuggestedFileName(Entry entry)
-    {
-        var title = string.IsNullOrWhiteSpace(entry.Title) ? Loc.T("S.Untitled") : entry.Title;
-        foreach (var c in System.IO.Path.GetInvalidFileNameChars()) title = title.Replace(c, '_');
-        return $"{entry.EntryDate:yyyy-MM-dd} {title}";
-    }
+    private static string SuggestedFileName(Entry entry) => ExportNaming.FileName(entry, DateTime.Today);
 
     private void ExportRtf_Click(object sender, RoutedEventArgs e)
     {
@@ -1225,7 +1220,7 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog(this) != true) return;
         try
         {
-            var header = $"{_vm.CurrentEntry.Title}\r\n[{_vm.CurrentEntry.TopicName}] {Loc.LongDate(_vm.CurrentEntry.EntryDate)} · {Loc.T("S.Status." + _vm.CurrentEntry.Status)}\r\n\r\n";
+            var header = ExportNaming.TextHeader(_vm.CurrentEntry);
             var body = _vm.CurrentEntry.IsPage ? DocumentService.GetPlainText(PageService.CloneForExport(Editor.Document, Loc.Language))
                 : DocumentService.GetPlainText(Editor.Document);
             System.IO.File.WriteAllText(dlg.FileName, header + body);
