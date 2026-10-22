@@ -10,13 +10,15 @@
     <sys:String x:Key="S.AllEntries">All entries</sys:String>
     <sys:String x:Key="S.ListCountTruncated">{0} · showing the latest {1} (narrow by date or search)</sys:String>
     <sys:String x:Key="S.OnePage">One page</sys:String>
-    <sys:String x:Key="S.OnePageHint">Each topic is one continuous page split by date. Date dividers are added automatically and cannot be edited. Type a date in the search box (e.g. 10/22 or 2026-10-22) and press Enter to jump to it.</sys:String>
+    <sys:String x:Key="S.OnePageHint">Each topic is one continuous page. Add a date only when you want one with [Insert today] (Ctrl+Shift+D); date dividers cannot be edited. Type a date in the search box (e.g. 10/22) and press Enter to jump to it.</sys:String>
     <sys:String x:Key="S.PageTitle">{0} — one page</sys:String>
     <sys:String x:Key="S.PagePickTopic">Pick a topic on the left</sys:String>
     <sys:String x:Key="S.PageDayCount">{0} days · click a day to jump to it</sys:String>
     <sys:String x:Key="S.PageDividerLocked">Date dividers cannot be deleted or edited.</sys:String>
-    <sys:String x:Key="S.PageDateNotFound">This page has nothing for {0}.</sys:String>
+    <sys:String x:Key="S.PageDateNotFound">This page has nothing for {0}. For today, use [Insert today].</sys:String>
     <sys:String x:Key="S.PageTextNotFound">Could not find "{0}".</sys:String>
+    <sys:String x:Key="S.PageInsertToday">Insert today</sys:String>
+    <sys:String x:Key="S.PageInsertTodayHint">Adds today's date divider to this page and moves below it (Ctrl+Shift+D). If it is already there, jumps to it.</sys:String>
     <sys:String x:Key="S.ListCount">{0} · {1} entries</sys:String>
     <sys:String x:Key="S.Status.Note">Note</sys:String>
     <sys:String x:Key="S.Status.InProgress">In progress</sys:String>

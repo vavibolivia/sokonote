@@ -10,13 +10,15 @@
     <sys:String x:Key="S.AllEntries">전체 일지</sys:String>
     <sys:String x:Key="S.ListCountTruncated">{0} · 최근 {1}건만 표시 (날짜·검색으로 좁혀 보세요)</sys:String>
     <sys:String x:Key="S.OnePage">한 장</sys:String>
-    <sys:String x:Key="S.OnePageHint">주제마다 한 장에 날짜별로 이어서 기록합니다. 날짜 구분선은 자동으로 생기고 고칠 수 없습니다. 검색창에 날짜(예: 10월 22일, 10/22, 2026-10-22)를 입력하고 Enter를 누르면 그 날짜로 이동합니다.</sys:String>
+    <sys:String x:Key="S.OnePageHint">주제마다 한 장에 이어서 기록합니다. 날짜는 필요할 때만 [오늘 날짜 넣기](Ctrl+Shift+D)로 넣고, 날짜 구분선은 고칠 수 없습니다. 검색창에 날짜(예: 10월 22일, 10/22)를 입력하고 Enter를 누르면 그 날짜로 이동합니다.</sys:String>
     <sys:String x:Key="S.PageTitle">{0} — 한 장</sys:String>
     <sys:String x:Key="S.PagePickTopic">왼쪽에서 주제를 선택하세요</sys:String>
     <sys:String x:Key="S.PageDayCount">날짜 {0}개 · 날짜를 누르면 그 위치로 이동</sys:String>
     <sys:String x:Key="S.PageDividerLocked">날짜 구분선은 지우거나 고칠 수 없습니다.</sys:String>
-    <sys:String x:Key="S.PageDateNotFound">이 페이지에 {0} 기록이 없습니다.</sys:String>
+    <sys:String x:Key="S.PageDateNotFound">이 페이지에 {0} 기록이 없습니다. 오늘이라면 [오늘 날짜 넣기]로 추가할 수 있습니다.</sys:String>
     <sys:String x:Key="S.PageTextNotFound">"{0}"을(를) 찾을 수 없습니다.</sys:String>
+    <sys:String x:Key="S.PageInsertToday">오늘 날짜 넣기</sys:String>
+    <sys:String x:Key="S.PageInsertTodayHint">이 페이지에 오늘 날짜 구분선을 넣고 그 아래로 이동합니다 (Ctrl+Shift+D). 이미 있으면 그 날로 이동합니다.</sys:String>
     <sys:String x:Key="S.ListCount">{0} · {1}건</sys:String>
     <sys:String x:Key="S.Status.Note">메모</sys:String>
     <sys:String x:Key="S.Status.InProgress">진행 중</sys:String>

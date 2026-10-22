@@ -38,6 +38,9 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Date dividers of the open topic page, shown as the middle list in page mode (filled by the window).</summary>
     public ObservableCollection<PageDay> PageDays { get; } = new();
 
+    /// <summary>Raised after the list shows search results, so the open entry can highlight the searched text.</summary>
+    public event EventHandler<string>? SearchResultsShown;
+
     /// <summary>Raised after a search hit on a topic page was opened: find this text in the page.</summary>
     public event EventHandler<string>? PageSearchRequested;
 
@@ -82,10 +85,27 @@ public partial class MainViewModel : ObservableObject
     public long? SelectedTopicId => SelectedTopic is { IsAll: false } t ? t.Id : null;
     public string SelectedDateText => Loc.LongDate(SelectedDate);
 
-    public void Initialize()
+    /// <summary>Starting view: "page" (default: one dateless page per topic), "date" or "all"; reopens the last topic.</summary>
+    public void Initialize(string? viewMode = null, long? lastTopicId = null)
     {
-        LoadTopics(null);
+        _suppressRefresh = true;
+        try
+        {
+            var mode = string.IsNullOrWhiteSpace(viewMode) ? "page" : viewMode;
+            IsPageMode = mode == "page";
+            IsDateMode = mode != "all";
+        }
+        finally
+        {
+            _suppressRefresh = false;
+        }
+        LoadTopics(lastTopicId is > 0 ? lastTopicId : null);
+        // a page needs a topic: start on the first one rather than on "all topics"
+        if (IsPageMode && SelectedTopic is { IsAll: true } && RealTopics.Count > 0) SelectedTopic = RealTopics[0];
     }
+
+    /// <summary>Remembered across sessions as "ui.viewMode".</summary>
+    public string ViewModeSetting => IsPageMode ? "page" : IsDateMode ? "date" : "all";
 
     // ---------------------------------------------------------------- topics
 
@@ -186,7 +206,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsByDateView));
         OnPropertyChanged(nameof(IsAllView));
-        RefreshEntries();
+        if (!_suppressRefresh) RefreshEntries();
     }
 
     partial void OnIsPageModeChanged(bool value)
@@ -194,7 +214,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsByDateView));
         OnPropertyChanged(nameof(IsAllView));
         if (value) IsReadAllMode = false;
-        RefreshEntries();
+        if (!_suppressRefresh) RefreshEntries();
     }
 
     partial void OnSelectedDateChanged(DateTime value)
@@ -280,6 +300,7 @@ public partial class MainViewModel : ObservableObject
 
         UpdateListCaption();
         CalendarMarks.Set(Repo.GetEntryDates(SelectedTopicId));
+        if (IsSearching) SearchResultsShown?.Invoke(this, SearchText.Trim());
     }
 
     /// <summary>Page mode: the editor shows the selected topic's single page; the middle list shows its days.</summary>

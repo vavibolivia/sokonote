@@ -25,7 +25,7 @@ public sealed class MainViewModelTests : IDisposable
             opened.Add(e);
             vm.CurrentEntry = e; // what the window does when it loads an entry
         };
-        vm.Initialize();
+        vm.Initialize("date"); // these tests are about the card list; page-mode tests switch explicitly
         return (vm, opened);
     }
 

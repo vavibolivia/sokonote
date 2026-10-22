@@ -128,7 +128,7 @@ public class PageUiStressTests
             vm.IsPageMode = true;
             UiThread.Pump(TimeSpan.FromMilliseconds(300));
             var open = sw.Elapsed;
-            Assert.Equal(365, vm.PageDays.Count);                                  // + today's new divider
+            Assert.Equal(364, vm.PageDays.Count);                                  // nothing added on open
 
             sw.Restart();
             var rnd = new Random(3);
@@ -154,7 +154,7 @@ public class PageUiStressTests
 
             var stored = repo.GetEntry(vm.CurrentEntry!.Id)!.PlainText;
             Assert.Contains("줄199", stored);
-            Assert.Equal(365, stored.Split('\n').Count(l => l.StartsWith("## ")));
+            Assert.Equal(364, stored.Split('\n').Count(l => l.StartsWith("## ")));
             Assert.Empty(errors);
             Assert.True(open < TimeSpan.FromSeconds(20), $"open {open}");
             Assert.True(jumps < TimeSpan.FromSeconds(30), $"150 jumps {jumps}");

@@ -13,6 +13,7 @@
 
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static views:AppCommands.NewEntry}" Executed="NewEntry_Executed"/>
+        <CommandBinding Command="{x:Static views:AppCommands.InsertToday}" Executed="InsertToday_Executed"/>
         <CommandBinding Command="{x:Static views:AppCommands.SaveEntry}" Executed="SaveEntry_Executed"/>
         <CommandBinding Command="{x:Static views:AppCommands.FocusSearch}" Executed="FocusSearch_Executed"/>
         <CommandBinding Command="{x:Static views:AppCommands.InsertLink}" Executed="InsertLink_Executed"/>
@@ -26,6 +27,7 @@
     </Window.CommandBindings>
     <Window.InputBindings>
         <KeyBinding Gesture="Ctrl+N" Command="{x:Static views:AppCommands.NewEntry}"/>
+        <KeyBinding Gesture="Ctrl+Shift+D" Command="{x:Static views:AppCommands.InsertToday}"/>
         <KeyBinding Gesture="Ctrl+S" Command="{x:Static views:AppCommands.SaveEntry}"/>
         <KeyBinding Gesture="Ctrl+F" Command="{x:Static views:AppCommands.FocusSearch}"/>
         <KeyBinding Gesture="Ctrl+K" Command="{x:Static views:AppCommands.InsertLink}"/>
@@ -267,6 +269,17 @@
                             </StackPanel>
                         </Button>
                         <ComboBox x:Name="StatusFilter" SelectedIndex="{Binding StatusFilterIndex}" Margin="0,0,8,0"/>
+                    </DockPanel>
+
+                    <DockPanel Margin="0,10,0,0" Visibility="{Binding IsPageMode, Converter={StaticResource BoolToVis}}">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Command="{x:Static views:AppCommands.InsertToday}" Height="28" Padding="10,0"
+                                ToolTip="{DynamicResource S.PageInsertTodayHint}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE787;" Style="{StaticResource Icon}" FontSize="11" Margin="0,0,6,0"/>
+                                <TextBlock Text="{DynamicResource S.PageInsertToday}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBlock/>
                     </DockPanel>
 
                     <TextBlock Text="{Binding ListTitle}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Ink}" Margin="2,14,0,0" TextTrimming="CharacterEllipsis"/>

@@ -408,3 +408,63 @@ public static class ExportNaming
             : entry.Title + nl + $"[{entry.TopicName}] {Loc.LongDate(entry.EntryDate)} · {Loc.T("S.Status." + entry.Status)}" + nl + nl;
     }
 }
+
+/// <summary>Text search inside a rich document; matches may span formatting (bold, links…) but not paragraphs.</summary>
+public static class DocumentSearch
+{
+    /// <summary>
+    /// The first match at or after <paramref name="from"/> (wrapping to the start), ignoring case;
+    /// null when the text does not occur.
+    /// </summary>
+    public static TextRange? Find(FlowDocument doc, string? query, TextPointer? from = null)
+    {
+        var q = (query ?? "").Trim();
+        if (q.Length == 0) return null;
+        TextRange? first = null;
+        foreach (var hit in FindAll(doc, q))
+        {
+            first ??= hit;
+            if (from is null || hit.Start.CompareTo(from) >= 0) return hit;
+        }
+        return first;
+    }
+
+    private static IEnumerable<TextRange> FindAll(FlowDocument doc, string query)
+    {
+        var text = new StringBuilder();
+        var starts = new List<TextPointer>();
+        var ends = new List<TextPointer>();
+        for (var p = doc.ContentStart; p is not null; p = p.GetNextContextPosition(LogicalDirection.Forward))
+        {
+            var ctx = p.GetPointerContext(LogicalDirection.Forward);
+            if (ctx == TextPointerContext.Text)
+            {
+                var run = p.GetTextInRun(LogicalDirection.Forward);
+                for (int i = 0; i < run.Length; i++)
+                {
+                    starts.Add(p.GetPositionAtOffset(i)!);
+                    ends.Add(p.GetPositionAtOffset(i + 1)!);
+                }
+                text.Append(run);
+            }
+            else if (ctx is TextPointerContext.ElementStart or TextPointerContext.ElementEnd or TextPointerContext.EmbeddedElement
+                     && p.GetAdjacentElement(LogicalDirection.Forward) is Block or LineBreak or InlineUIContainer or BlockUIContainer or null)
+            {
+                // a paragraph/line boundary or an embedded object ends the searchable stretch
+                foreach (var hit in Matches(text, starts, ends, query)) yield return hit;
+                text.Clear();
+                starts.Clear();
+                ends.Clear();
+            }
+        }
+        foreach (var hit in Matches(text, starts, ends, query)) yield return hit;
+    }
+
+    private static IEnumerable<TextRange> Matches(StringBuilder text, List<TextPointer> starts, List<TextPointer> ends, string query)
+    {
+        var s = text.ToString();
+        for (int i = s.IndexOf(query, StringComparison.CurrentCultureIgnoreCase); i >= 0;
+             i = s.IndexOf(query, i + query.Length, StringComparison.CurrentCultureIgnoreCase))
+            yield return new TextRange(starts[i], ends[i + query.Length - 1]);
+    }
+}

@@ -296,5 +296,30 @@ public class DocumentTests
     });
 
     [Fact]
+    public void Search_finds_text_across_formatting_and_wraps() => Sta.Run(() =>
+    {
+        var p1 = new Paragraph(new Run("Alpha 배포 one"));
+        var p2 = new Paragraph(new Run("둘째 "));
+        p2.Inlines.Add(new Bold(new Run("배")));
+        p2.Inlines.Add(new Hyperlink(new Run("포")) { NavigateUri = new Uri("https://a.com") });
+        var doc = new FlowDocument(p1);
+        doc.Blocks.Add(p2);
+
+        var first = DocumentSearch.Find(doc, "배포")!;
+        Assert.Equal("배포", first.Text);
+        Assert.Same(p1, first.Start.Paragraph);
+
+        var second = DocumentSearch.Find(doc, "배포", first.End)!;            // across bold + link
+        Assert.Equal("배포", second.Text);
+        Assert.Same(p2, second.Start.Paragraph);
+
+        Assert.Same(p1, DocumentSearch.Find(doc, "배포", second.End)!.Start.Paragraph); // wraps around
+        Assert.Equal("Alpha", DocumentSearch.Find(doc, "ALPHA")!.Text);                // ignores case
+        Assert.Null(DocumentSearch.Find(doc, "one둘째"));                               // not across paragraphs
+        Assert.Null(DocumentSearch.Find(doc, "없음"));
+        Assert.Null(DocumentSearch.Find(doc, "  "));
+    });
+
+    [Fact]
     public void Word_count() => Assert.Equal(4, DocumentService.CountWords(" 오늘  회의\n정리\t끝 "));
 }

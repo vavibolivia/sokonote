@@ -31,6 +31,7 @@ public static class AppCommands
     public static readonly RoutedUICommand OpenSettings = new("Settings", nameof(OpenSettings), typeof(AppCommands));
     public static readonly RoutedUICommand AddTopic = new("Add topic", nameof(AddTopic), typeof(AppCommands));
     public static readonly RoutedUICommand DeleteEntry = new("Delete entry", nameof(DeleteEntry), typeof(AppCommands));
+    public static readonly RoutedUICommand InsertToday = new("Insert today's date", nameof(InsertToday), typeof(AppCommands));
 }
 
 public sealed record FontItem(string Name, FontFamily Family)
@@ -82,8 +83,10 @@ public partial class MainWindow : Window
         _dayTimer.Start();
 
         _vm.OpenEntryRequested += (_, e) => LoadEntry(e);
-        _vm.PageDayRequested += (_, day) => JumpToDay(day, createIfToday: true);
-        _vm.PageSearchRequested += (_, text) => SearchInPage(text);
+        _vm.PageDayRequested += (_, day) => JumpToDay(day, createIfToday: false);
+        _vm.PageSearchRequested += (_, text) => SearchInPage(text, fromStart: true);
+        // the open entry may stay open across a new search: highlight the new text in it too
+        _vm.SearchResultsShown += (_, text) => { if (_vm.CurrentEntry is { IsPage: false }) SelectSearchHit(text, fromStart: true); };
         _vm.BeforeNavigate += (_, _) => SaveNow();
         _vm.PropertyChanged += Vm_PropertyChanged;
         _vm.Claude.FlushEditor = SaveNow;
@@ -97,6 +100,7 @@ public partial class MainWindow : Window
         SizeCombo.ItemsSource = FontSizes.Select(s => s.ToString(CultureInfo.InvariantCulture)).ToList();
         PaperPalette.Configure(ColorPalette.PaperColors, false, null);
 
+        Editor.IsInactiveSelectionHighlightEnabled = true; // search hits stay visible while the search box has focus
         Editor.AddHandler(Hyperlink.RequestNavigateEvent, new RequestNavigateEventHandler(Hyperlink_RequestNavigate));
         DataObject.AddPastingHandler(Editor, Editor_Pasting);
 
@@ -110,7 +114,8 @@ public partial class MainWindow : Window
     {
         RestoreWindowState();
         ApplyEditorDefaults();
-        _vm.Initialize();
+        _vm.Initialize(_vm.Repo.GetSetting("ui.viewMode"),
+            long.TryParse(_vm.Repo.GetSetting("ui.lastTopic"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var lastTopic) ? lastTopic : null);
         _vm.Claude.Load();
         if (_vm.Repo.GetSetting("ui.claudeOpen") == "1") SetClaudeOpen(true);
         _ = DetectClaudeAccountAsync();
@@ -165,6 +170,8 @@ public partial class MainWindow : Window
             repo.SetSetting("ui.maximized", WindowState == WindowState.Maximized ? "1" : "0");
             repo.SetSetting("ui.listWidth", ListColumn.ActualWidth.ToString(CultureInfo.InvariantCulture));
             repo.SetSetting("ui.claudeOpen", IsClaudeOpen ? "1" : "0");
+            repo.SetSetting("ui.viewMode", _vm.ViewModeSetting);
+            repo.SetSetting("ui.lastTopic", (_vm.SelectedTopic?.Id ?? 0).ToString(CultureInfo.InvariantCulture));
         }
         catch (Exception ex)
         {
@@ -310,11 +317,19 @@ public partial class MainWindow : Window
         }
         if (_vm.CurrentEntry is { IsPage: true })
         {
-            // a page always opens on a day: the selected one if it has a section, otherwise today (created if needed)
-            var target = PageService.Days(Editor.Document).Any(d => d.Day == _vm.SelectedDate.Date) ? _vm.SelectedDate.Date : DateTime.Today;
-            JumpToDay(target, createIfToday: true);
+            // pages are dateless by default: open on the selected day if the page has it, otherwise at the end
+            if (PageService.Days(Editor.Document).Any(d => d.Day == _vm.SelectedDate.Date))
+            {
+                JumpToDay(_vm.SelectedDate.Date, createIfToday: false);
+            }
+            else
+            {
+                RefreshPageDays();
+                Editor.CaretPosition = Editor.Document.ContentEnd;
+            }
             return;
         }
+        if (_vm.IsSearching && _vm.CurrentEntry is not null && SelectSearchHit(_vm.SearchText, fromStart: true)) return;
         if (entry is not null && entry.PlainText.Length == 0 && string.IsNullOrEmpty(entry.Title) && entry.CreatedAt > DateTime.Now.AddSeconds(-5))
             Dispatcher.BeginInvoke(() => { TitleBox.Focus(); }, DispatcherPriority.Input);
     }
@@ -441,8 +456,8 @@ public partial class MainWindow : Window
     {
         if (_vm.IsPageMode)
         {
-            // a page has no separate entries: "new" means continue writing today
-            if (_vm.CurrentEntry is { IsPage: true }) _vm.GoToday();
+            // a page has no separate entries: "new" means start today's section
+            InsertTodayOnPage();
             return;
         }
         var topicId = _vm.SelectedTopicId ?? _vm.CurrentEntry?.TopicId ?? _vm.RealTopics.FirstOrDefault()?.Id;
@@ -500,7 +515,7 @@ public partial class MainWindow : Window
     {
         if (_vm.IsPageMode && e.Key == Key.Enter && _vm.CurrentEntry is { IsPage: true })
         {
-            SearchInPage(_vm.SearchText);
+            SearchInPage(_vm.SearchText, fromStart: false);
             e.Handled = true;
             return;
         }
@@ -1362,7 +1377,12 @@ public partial class MainWindow : Window
             Editor.BeginChange();
             try
             {
-                var anchor = PageService.EnsureDay(Editor.Document, DateTime.Today, Loc.Language)!;
+                // today's section if the page has one, otherwise the end of the page (no date is added for this)
+                var todayDivider = PageService.Days(Editor.Document).FirstOrDefault(d => d.Day == DateTime.Today).Divider;
+                Paragraph anchor;
+                if (todayDivider is not null) anchor = PageService.LastParagraphOfSection(Editor.Document, todayDivider);
+                else if (Editor.Document.Blocks.LastBlock is Paragraph last) anchor = last;
+                else Editor.Document.Blocks.Add(anchor = new Paragraph());
                 foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
                 {
                     var p = new Paragraph(new Run(line));
@@ -1402,6 +1422,16 @@ public partial class MainWindow : Window
 
     // ================================================================ one page per topic
 
+    private void InsertToday_Executed(object sender, ExecutedRoutedEventArgs e) => InsertTodayOnPage();
+
+    /// <summary>Adds today's date divider to the page (only on request) and moves the caret below it.</summary>
+    internal void InsertTodayOnPage()
+    {
+        if (_vm.CurrentEntry is not { IsPage: true }) return;
+        JumpToDay(DateTime.Today, createIfToday: true);
+        if (_vm.SelectedDate.Date != DateTime.Today) _vm.SelectedDate = DateTime.Today; // jumps to the section just made
+    }
+
     /// <summary>Puts the caret at the end of <paramref name="day"/>'s section (creating today's divider when asked).</summary>
     internal bool JumpToDay(DateTime day, bool createIfToday)
     {
@@ -1440,7 +1470,7 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private void SearchInPage(string query)
+    private void SearchInPage(string query, bool fromStart)
     {
         query = query.Trim();
         if (query.Length == 0) return;
@@ -1456,30 +1486,25 @@ public partial class MainWindow : Window
             SaveStatus.Text = Loc.F("S.PageDateNotFound", query);
             return;
         }
-        // plain text: next occurrence after the caret, wrapping around
-        var found = FindText(Editor.CaretPosition, Editor.Document.ContentEnd, query) ?? FindText(Editor.Document.ContentStart, Editor.CaretPosition, query);
-        if (found is null)
-        {
-            SaveStatus.Text = Loc.F("S.PageTextNotFound", query);
-            return;
-        }
-        Editor.Selection.Select(found.Start, found.End);
-        Editor.Focus();
-        found.Start.Paragraph?.BringIntoView();
+        if (!SelectSearchHit(query, fromStart)) SaveStatus.Text = Loc.F("S.PageTextNotFound", query);
     }
 
-    private static TextRange? FindText(TextPointer from, TextPointer to, string text)
+    /// <summary>
+    /// Selects the next occurrence of <paramref name="query"/> (the first one when <paramref name="fromStart"/>) and
+    /// scrolls to it. Focus is left where it is, so Enter in the search box keeps moving to the next hit; the
+    /// selection stays highlighted and becomes the caret position as soon as the editor gets focus.
+    /// </summary>
+    private bool SelectSearchHit(string query, bool fromStart)
     {
-        for (var p = from; p is not null && p.CompareTo(to) < 0; p = p.GetNextContextPosition(LogicalDirection.Forward))
+        var hit = DocumentSearch.Find(Editor.Document, query, fromStart ? null : Editor.Selection.End);
+        if (hit is null) return false;
+        Editor.Selection.Select(hit.Start, hit.End);
+        Dispatcher.BeginInvoke(() =>
         {
-            if (p.GetPointerContext(LogicalDirection.Forward) != TextPointerContext.Text) continue;
-            var run = p.GetTextInRun(LogicalDirection.Forward);
-            var i = run.IndexOf(text, StringComparison.CurrentCultureIgnoreCase);
-            if (i < 0) continue;
-            var start = p.GetPositionAtOffset(i)!;
-            return new TextRange(start, start.GetPositionAtOffset(text.Length)!);
-        }
-        return null;
+            var rect = hit.Start.GetCharacterRect(LogicalDirection.Forward);
+            if (!rect.IsEmpty) Editor.ScrollToVerticalOffset(Math.Max(0, Editor.VerticalOffset + rect.Top - Editor.ViewportHeight / 3));
+        }, DispatcherPriority.Loaded);
+        return true;
     }
 
     private void RefreshPageDays()
@@ -1538,8 +1563,8 @@ public partial class MainWindow : Window
         _today = now;
         if (_vm.IsPageMode || _vm.IsDateMode)
         {
-            if (_vm.SelectedDate.Date == previous) _vm.SelectedDate = now; // follow the day (page: jumps; date mode: reloads)
-            else if (_vm.CurrentEntry is { IsPage: true }) JumpToDay(now, createIfToday: true);
+            // follow the day (date mode reloads; a page jumps if it already has the day — dates are never added on their own)
+            if (_vm.SelectedDate.Date == previous) _vm.SelectedDate = now;
         }
         RefreshPageDays();
     }

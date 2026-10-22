@@ -26,6 +26,7 @@ public class MainWindowSmokeTests
             repo.AddChat("user", "질문");
             repo.AddChat("assistant", "답변");
             repo.SetSetting("ui.claudeOpen", "1"); // render the chat panel and its message template too
+            repo.SetSetting("ui.viewMode", "date"); // the card list (the default view is the page)
         });
         try
         {
