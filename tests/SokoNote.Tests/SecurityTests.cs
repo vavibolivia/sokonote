@@ -9,7 +9,7 @@ public class SecurityTests
     [InlineData("http://example.com", LinkOpenAction.Open)]
     [InlineData("mailto:me@example.com", LinkOpenAction.Open)]
     [InlineData(@"file:///C:/docs/report.docx", LinkOpenAction.Open)]
-    [InlineData(@"file:///C:/docs/", LinkOpenAction.Open)]
+    [InlineData(@"file:///C:/no-such-folder/", LinkOpenAction.Reveal)] // only existing folders open
     [InlineData(@"file:///C:/Users/me/Downloads/setup.exe", LinkOpenAction.Reveal)]
     [InlineData(@"file:///C:/tools/run.BAT", LinkOpenAction.Reveal)]
     [InlineData(@"file:///C:/x/script.ps1", LinkOpenAction.Reveal)]
@@ -24,6 +24,29 @@ public class SecurityTests
     {
         Assert.True(Uri.TryCreate(url, UriKind.Absolute, out var uri));
         Assert.Equal(expected, LinkNormalizer.Classify(uri));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Users\me\Downloads\setup.exe.", LinkOpenAction.Reveal)]     // Windows strips the trailing dot and runs it
+    [InlineData(@"C:\Users\me\Downloads\setup.exe . ", LinkOpenAction.Reveal)]
+    [InlineData(@"C:\docs\notes.txt:evil.exe", LinkOpenAction.Reveal)]          // alternate data stream
+    [InlineData(@"C:\tools\console.msc", LinkOpenAction.Reveal)]                 // not on any blocklist
+    [InlineData(@"C:\docs\page.html", LinkOpenAction.Reveal)]                    // local HTML runs script
+    [InlineData(@"C:\docs\old.xls", LinkOpenAction.Reveal)]                      // macro-capable legacy Office
+    [InlineData(@"C:\docs\noextension", LinkOpenAction.Reveal)]
+    [InlineData(@"C:\docs\report.docx", LinkOpenAction.Open)]
+    [InlineData(@"C:\docs\plan.HWPX", LinkOpenAction.Open)]
+    [InlineData(@"C:\docs\scan.pdf", LinkOpenAction.Open)]
+    public void Local_files_open_only_when_they_are_known_documents(string path, LinkOpenAction expected)
+    {
+        // regression: a blocklist of executable extensions was bypassed by trailing dots, streams and unlisted types
+        Assert.Equal(expected, LinkNormalizer.Classify(new Uri(path)));
+    }
+
+    [Fact]
+    public void Existing_folders_open_in_explorer()
+    {
+        Assert.Equal(LinkOpenAction.Open, LinkNormalizer.Classify(new Uri(System.IO.Path.GetTempPath())));
     }
 
     [Fact]

@@ -330,10 +330,17 @@ public static class LinkNormalizer
         return true;
     }
 
-    private static readonly HashSet<string> ExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Local files a click may open directly: documents, images and media only. Everything else (programs, scripts,
+    /// shortcuts, HTML, macro-capable legacy Office, unknown types) is only shown in Explorer. An allowlist, because a
+    /// blocklist is bypassed by trailing dots ("setup.exe."), alternate data streams and types nobody thought of.
+    /// </summary>
+    private static readonly HashSet<string> SafeDocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".com", ".bat", ".cmd", ".scr", ".pif", ".msi", ".msp", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse",
-        ".wsf", ".wsh", ".hta", ".cpl", ".lnk", ".url", ".reg", ".jar", ".application", ".appref-ms", ".settingcontent-ms",
+        ".txt", ".log", ".md", ".csv", ".json", ".pdf", ".rtf",
+        ".docx", ".xlsx", ".pptx", ".hwp", ".hwpx", ".odt", ".ods", ".odp",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp",
+        ".mp3", ".mp4", ".wav", ".m4a", ".mov", ".zip",
     };
 
     /// <summary>
@@ -345,7 +352,12 @@ public static class LinkNormalizer
         if (uri is null || !uri.IsAbsoluteUri) return LinkOpenAction.Block;
         if (uri.Scheme is "http" or "https" or "mailto") return LinkOpenAction.Open;
         if (uri.Scheme != "file" || uri.IsUnc || uri.LocalPath.StartsWith(@"\\", StringComparison.Ordinal)) return LinkOpenAction.Block;
-        return ExecutableExtensions.Contains(Path.GetExtension(uri.LocalPath)) ? LinkOpenAction.Reveal : LinkOpenAction.Open;
+        var path = uri.LocalPath;
+        if (path.IndexOf(':', 2) >= 0) return LinkOpenAction.Reveal;                   // alternate data stream ("a.txt:x.exe")
+        if (Directory.Exists(path)) return LinkOpenAction.Open;                       // a folder opens in Explorer
+        var trimmed = path.TrimEnd('.', ' ');
+        if (trimmed.Length != path.Length) return LinkOpenAction.Reveal;              // Windows ignores trailing dots/spaces
+        return SafeDocumentExtensions.Contains(Path.GetExtension(trimmed)) ? LinkOpenAction.Open : LinkOpenAction.Reveal;
     }
 }
 
