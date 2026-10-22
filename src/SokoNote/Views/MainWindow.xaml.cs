@@ -83,6 +83,7 @@ public partial class MainWindow : Window
 
         _vm.OpenEntryRequested += (_, e) => LoadEntry(e);
         _vm.PageDayRequested += (_, day) => JumpToDay(day, createIfToday: true);
+        _vm.PageSearchRequested += (_, text) => SearchInPage(text);
         _vm.BeforeNavigate += (_, _) => SaveNow();
         _vm.PropertyChanged += Vm_PropertyChanged;
         _vm.Claude.FlushEditor = SaveNow;

@@ -116,6 +116,31 @@ public sealed class MainViewModelTests : IDisposable
     });
 
     [Fact]
+    public void Search_finds_text_written_on_a_topic_page_and_opens_it_there() => Sta.Run(() =>
+    {
+        // regression: notes written in one-page mode never showed up in the normal search
+        var (vm, _) = Create();
+        var a = vm.AddTopic("A", "#111111");
+        var page = vm.Repo.GetOrCreatePage(a.Id);
+        page.PlainText = "## 2026-10-21 10월 21일 (수)\n배포 일정 확정";
+        vm.Repo.UpdateEntry(page);
+        string? jumpedTo = null;
+        vm.PageSearchRequested += (_, q) => jumpedTo = q;
+
+        vm.SearchText = "배포";
+        vm.RefreshEntries();                       // the debounce timer does this in the app
+        var hit = Assert.Single(vm.Entries);
+        Assert.True(hit.IsPage);
+        Assert.Equal(Services.Loc.F("S.PageTitle", "A"), hit.Title);
+
+        vm.SelectedEntry = hit;                    // clicking the result
+        Assert.True(vm.IsPageMode);
+        Assert.Equal(a.Id, vm.SelectedTopic?.Id);
+        Assert.Equal(page.Id, vm.CurrentEntry?.Id);
+        Assert.Equal("배포", jumpedTo);
+    });
+
+    [Fact]
     public void Date_navigation_filters_the_list() => Sta.Run(() =>
     {
         var (vm, _) = Create();

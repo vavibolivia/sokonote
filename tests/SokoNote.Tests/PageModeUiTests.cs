@@ -292,6 +292,31 @@ public class PageModeUiTests
     });
 
     [Fact]
+    public void Normal_search_result_on_a_page_opens_the_page_at_the_match() => UiThread.Run(() =>
+    {
+        var (w, repo, errors) = UiThread.OpenMainWindow(SeedPage);
+        try
+        {
+            var vm = (MainViewModel)w.DataContext;
+            vm.IsDateMode = false;
+            vm.SearchText = "그저께";
+            vm.RefreshEntries();
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+            var hit = Assert.Single(vm.Entries);
+
+            w.EntryList.SelectedItem = hit;
+            UiThread.Pump(TimeSpan.FromMilliseconds(300));
+
+            Assert.True(vm.IsPageMode);
+            Assert.True(vm.CurrentEntry?.IsPage);
+            Assert.Equal("그저께", w.Editor.Selection.Text);
+            Assert.Equal(TwoDaysAgo, DayAtCaret(w));
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
     public void All_topics_in_page_mode_asks_to_pick_a_topic() => UiThread.Run(() =>
     {
         var (w, vm, _, errors) = OpenPage();

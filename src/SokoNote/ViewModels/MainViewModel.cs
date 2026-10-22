@@ -38,6 +38,9 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Date dividers of the open topic page, shown as the middle list in page mode (filled by the window).</summary>
     public ObservableCollection<PageDay> PageDays { get; } = new();
 
+    /// <summary>Raised after a search hit on a topic page was opened: find this text in the page.</summary>
+    public event EventHandler<string>? PageSearchRequested;
+
     /// <summary>Raised in page mode when the user picks a day (list, calendar, previous/next): move the caret there.</summary>
     public event EventHandler<DateTime>? PageDayRequested;
 
@@ -207,6 +210,11 @@ public partial class MainViewModel : ObservableObject
     {
         if (_suppressRefresh) return;
         if (value is null) return; // list cleared or re-filtered; the editor decides what to do
+        if (value.IsPage)
+        {
+            OpenPageForSearchHit(value);
+            return;
+        }
         if (CurrentEntry?.Id == value.Id) return;
         OpenEntryRequested?.Invoke(this, value);
     }
@@ -214,7 +222,11 @@ public partial class MainViewModel : ObservableObject
     public EntryQuery BuildListQuery()
     {
         var q = new EntryQuery { TopicId = SelectedTopicId, Limit = ListLimit + 1 }; // +1 tells whether more exist
-        if (IsSearching) q.Search = SearchText;
+        if (IsSearching)
+        {
+            q.Search = SearchText;
+            q.IncludePages = true; // text written in one-page mode must be findable too
+        }
         else if (IsDateMode) q.Date = SelectedDate.Date;
         if (StatusFilterIndex > 0) q.Status = (EntryStatus)(StatusFilterIndex - 1);
         return q;
@@ -235,6 +247,8 @@ public partial class MainViewModel : ObservableObject
         keepId ??= CurrentEntry?.Id;
 
         var list = Repo.QueryEntries(BuildListQuery());
+        foreach (var e in list.Where(e => e.IsPage && string.IsNullOrWhiteSpace(e.Title)))
+            e.Title = Loc.F("S.PageTitle", e.TopicName);
         IsListTruncated = list.Count > ListLimit;
         if (IsListTruncated) list.RemoveRange(ListLimit, list.Count - ListLimit);
         _suppressRefresh = true;
@@ -251,7 +265,7 @@ public partial class MainViewModel : ObservableObject
 
         if (SelectedEntry is null)
         {
-            var next = Entries.FirstOrDefault();
+            var next = Entries.FirstOrDefault(e => !e.IsPage); // a page hit only opens when clicked (it switches the view)
             if (next is not null) SelectedEntry = next; // opens it
             else if (CurrentEntry is not null) OpenEntryRequested?.Invoke(this, null);
         }
@@ -288,6 +302,25 @@ public partial class MainViewModel : ObservableObject
             if (CurrentEntry is not null) OpenEntryRequested?.Invoke(this, null);
         }
         ListSubtitle = Loc.F("S.PageDayCount", PageDays.Count);
+    }
+
+    /// <summary>A search result that is a topic page: switch to that topic's page and look for the search text in it.</summary>
+    private void OpenPageForSearchHit(Entry pageHit)
+    {
+        var query = SearchText.Trim();
+        _suppressRefresh = true;
+        try
+        {
+            SelectedTopic = Topics.FirstOrDefault(t => t.Id == pageHit.TopicId) ?? SelectedTopic;
+            SearchText = "";
+        }
+        finally
+        {
+            _suppressRefresh = false;
+        }
+        _searchDebounce.Stop();
+        IsPageMode = true; // opens the page
+        if (query.Length > 0) PageSearchRequested?.Invoke(this, query);
     }
 
     /// <summary>Called by the window after it (re)built the page's day list.</summary>
