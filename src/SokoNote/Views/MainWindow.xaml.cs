@@ -386,7 +386,9 @@ public partial class MainWindow : Window
         if (_vm.CurrentEntry is { IsPage: true })
         {
             var n = PageService.CountDividers(Editor.Document);
-            if (n < _dividerCount)
+            // Undo/Redo only replay the user's own steps (e.g. taking back "insert today"): accept them as they are.
+            // Undoing again here would swallow a further step, such as text typed before the date.
+            if (n < _dividerCount && e.UndoAction is not (UndoAction.Undo or UndoAction.Redo))
             {
                 // a date divider was removed (cut, drag, typing over a selection…): take the edit back
                 Dispatcher.BeginInvoke(() =>

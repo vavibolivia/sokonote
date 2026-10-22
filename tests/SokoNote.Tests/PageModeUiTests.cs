@@ -382,6 +382,36 @@ public class PageModeUiTests
         finally { w.Close(); }
     });
 
+    [Fact]
+    public void Undo_of_insert_today_takes_back_only_the_date() => UiThread.Run(() =>
+    {
+        // regression: Ctrl+Z removed the new date, the divider protection saw a divider vanish and undid one more step,
+        // taking the text typed before it as well
+        var (w, _, _, errors) = OpenPage();
+        try
+        {
+            w.Editor.Focus();
+            w.Editor.CaretPosition = w.Editor.Document.ContentEnd;
+            w.Editor.CaretPosition.InsertTextInRun(" 먼저 쓴 글");
+            AppCommands.InsertToday.Execute(null, w);
+            UiThread.Pump(TimeSpan.FromMilliseconds(100));
+            Assert.Equal(3, PageService.Days(w.Editor.Document).Count);
+
+            ApplicationCommands.Undo.Execute(null, w.Editor);
+            UiThread.Pump(TimeSpan.FromMilliseconds(300));
+
+            Assert.Equal(2, PageService.Days(w.Editor.Document).Count);          // the date is gone…
+            Assert.Contains("먼저 쓴 글", DocText(w));                           // …and nothing else
+            Assert.NotEqual(Loc.T("S.PageDividerLocked"), w.SaveStatus.Text);
+
+            ApplicationCommands.Redo.Execute(null, w.Editor);                    // redo brings it back
+            UiThread.Pump(TimeSpan.FromMilliseconds(300));
+            Assert.Equal(3, PageService.Days(w.Editor.Document).Count);
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
     // ------------------------------------------------------------ moving between days
 
     [Fact]
