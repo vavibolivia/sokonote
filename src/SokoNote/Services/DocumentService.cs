@@ -431,40 +431,44 @@ public static class DocumentSearch
 
     private static IEnumerable<TextRange> FindAll(FlowDocument doc, string query)
     {
+        // text of one searchable stretch, plus where each text run starts (pointers are only resolved for hits)
         var text = new StringBuilder();
-        var starts = new List<TextPointer>();
-        var ends = new List<TextPointer>();
+        var runs = new List<(int Offset, TextPointer Start)>();
         for (var p = doc.ContentStart; p is not null; p = p.GetNextContextPosition(LogicalDirection.Forward))
         {
             var ctx = p.GetPointerContext(LogicalDirection.Forward);
             if (ctx == TextPointerContext.Text)
             {
-                var run = p.GetTextInRun(LogicalDirection.Forward);
-                for (int i = 0; i < run.Length; i++)
-                {
-                    starts.Add(p.GetPositionAtOffset(i)!);
-                    ends.Add(p.GetPositionAtOffset(i + 1)!);
-                }
-                text.Append(run);
+                runs.Add((text.Length, p));
+                text.Append(p.GetTextInRun(LogicalDirection.Forward));
             }
             else if (ctx is TextPointerContext.ElementStart or TextPointerContext.ElementEnd or TextPointerContext.EmbeddedElement
                      && p.GetAdjacentElement(LogicalDirection.Forward) is Block or LineBreak or InlineUIContainer or BlockUIContainer or null)
             {
                 // a paragraph/line boundary or an embedded object ends the searchable stretch
-                foreach (var hit in Matches(text, starts, ends, query)) yield return hit;
+                foreach (var hit in Matches(text, runs, query)) yield return hit;
                 text.Clear();
-                starts.Clear();
-                ends.Clear();
+                runs.Clear();
             }
         }
-        foreach (var hit in Matches(text, starts, ends, query)) yield return hit;
+        foreach (var hit in Matches(text, runs, query)) yield return hit;
     }
 
-    private static IEnumerable<TextRange> Matches(StringBuilder text, List<TextPointer> starts, List<TextPointer> ends, string query)
+    private static IEnumerable<TextRange> Matches(StringBuilder text, List<(int Offset, TextPointer Start)> runs, string query)
     {
+        if (text.Length < query.Length) yield break;
         var s = text.ToString();
         for (int i = s.IndexOf(query, StringComparison.CurrentCultureIgnoreCase); i >= 0;
              i = s.IndexOf(query, i + query.Length, StringComparison.CurrentCultureIgnoreCase))
-            yield return new TextRange(starts[i], ends[i + query.Length - 1]);
+            yield return new TextRange(PointerAt(runs, i, endOfChar: false), PointerAt(runs, i + query.Length - 1, endOfChar: true));
+    }
+
+    /// <summary>Pointer before (or after) character <paramref name="index"/> of the stretch.</summary>
+    private static TextPointer PointerAt(List<(int Offset, TextPointer Start)> runs, int index, bool endOfChar)
+    {
+        var r = runs.Count - 1;
+        while (r > 0 && runs[r].Offset > index) r--;
+        var run = runs[r];
+        return run.Start.GetPositionAtOffset(index - run.Offset + (endOfChar ? 1 : 0))!;
     }
 }

@@ -68,6 +68,27 @@ public class PageStressTests
     });
 
     [Fact]
+    public void Text_search_on_a_three_year_page_is_quick() => Sta.Run(() =>
+    {
+        var doc = BuildPage(new DateTime(2024, 1, 1), 1096, 3);
+        doc.Blocks.Add(new Paragraph(new Run("맨 끝의 유일한 단어 크로노스")));
+
+        var sw = Stopwatch.StartNew();
+        var hit = DocumentSearch.Find(doc, "크로노스");                         // one hit at the very end: scans everything
+        var once = sw.Elapsed;
+        Assert.Equal("크로노스", hit!.Text);
+
+        sw.Restart();
+        TextPointer? from = null;
+        for (int i = 0; i < 20; i++) from = DocumentSearch.Find(doc, "업무 2", from)!.End;   // Enter pressed 20 times
+        var steps = sw.Elapsed;
+
+        // one Enter should feel instant even on a big page; bounds are loose for slow CI machines
+        Assert.True(once < TimeSpan.FromSeconds(1.5), $"single search {once}");
+        Assert.True(steps < TimeSpan.FromSeconds(10), $"20 steps {steps}");
+    });
+
+    [Fact]
     public void Repeated_save_load_cycles_do_not_drift() => Sta.Run(() =>
     {
         var doc = BuildPage(new DateTime(2026, 9, 1), 40, 2);
