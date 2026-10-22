@@ -44,12 +44,33 @@ public class PageServiceTests
     });
 
     [Fact]
-    public void Older_missing_day_is_not_inserted() => Sta.Run(() =>
+    public void An_earlier_day_is_inserted_in_date_order() => Sta.Run(() =>
+    {
+        // regression: with a later day already on the page (clock set back), today got no divider and
+        // inserting a Claude answer for today crashed on the null result
+        var doc = new FlowDocument();
+        PageService.EnsureDay(doc, new DateTime(2026, 10, 20), "ko")!.Inlines.Add(new Run("20일"));
+        PageService.EnsureDay(doc, new DateTime(2026, 10, 25), "ko")!.Inlines.Add(new Run("25일"));
+
+        var p = PageService.EnsureDay(doc, new DateTime(2026, 10, 22), "ko");
+        Assert.NotNull(p);
+        p!.Inlines.Add(new Run("22일"));
+
+        Assert.Equal(new[] { 20, 22, 25 }, PageService.Days(doc).Select(d => d.Day.Day));
+        var plain = PageService.GetPlainText(doc, "ko");
+        Assert.True(plain.IndexOf("20일") < plain.IndexOf("22일") && plain.IndexOf("22일") < plain.IndexOf("25일"), plain);
+        Assert.Equal(4, PageService.CountDividers(doc));                       // 3 days + a single 2026년
+    });
+
+    [Fact]
+    public void An_earlier_year_gets_its_own_year_divider_before_the_later_one() => Sta.Run(() =>
     {
         var doc = new FlowDocument();
-        PageService.EnsureDay(doc, new DateTime(2026, 10, 22), "ko");
-        Assert.Null(PageService.EnsureDay(doc, new DateTime(2026, 10, 1), "ko"));
-        Assert.Single(PageService.Days(doc));
+        PageService.EnsureDay(doc, new DateTime(2026, 1, 5), "ko");
+        PageService.EnsureDay(doc, new DateTime(2025, 12, 30), "ko");
+
+        var labels = doc.Blocks.Select(b => PageService.YearOf(b)?.ToString() ?? PageService.DayOf(b)?.ToString("yyyy-MM-dd")).Where(x => x is not null);
+        Assert.Equal(new[] { "2025", "2025-12-30", "2026", "2026-01-05" }, labels);
     });
 
     [Fact]

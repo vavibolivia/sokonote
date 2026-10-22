@@ -317,6 +317,39 @@ public class PageModeUiTests
     });
 
     [Fact]
+    public void Page_with_a_later_day_still_gets_today_in_order_and_accepts_inserts() => UiThread.Run(() =>
+    {
+        // the PC clock was set back: tomorrow's divider already exists
+        var tomorrow = Today.AddDays(1);
+        var (w, _, errors) = UiThread.OpenMainWindow(repo =>
+        {
+            var topic = repo.AddTopic("시계", "#5B8DEF");
+            var doc = new FlowDocument();
+            PageService.EnsureDay(doc, Yesterday, "ko").Inlines.Add(new Run("어제"));
+            PageService.EnsureDay(doc, tomorrow, "ko").Inlines.Add(new Run("내일"));
+            var page = repo.GetOrCreatePage(topic.Id);
+            page.Content = PageService.Save(doc);
+            repo.UpdateEntry(page);
+        });
+        try
+        {
+            var vm = (MainViewModel)w.DataContext;
+            vm.SelectedTopic = vm.Topics.Single(t => t.Name == "시계");
+            vm.IsPageMode = true;
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+
+            Assert.Equal(new[] { Yesterday, Today, tomorrow }, PageService.Days(w.Editor.Document).Select(d => d.Day));
+            Assert.Equal(Today, DayAtCaret(w));
+
+            var insert = typeof(MainWindow).GetMethod("InsertTextIntoEntry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            Assert.True((bool)insert.Invoke(w, new object[] { "Claude 답변" })!);
+            Assert.Equal(Today, DayAtCaret(w));
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
     public void All_topics_in_page_mode_asks_to_pick_a_topic() => UiThread.Run(() =>
     {
         var (w, vm, _, errors) = OpenPage();

@@ -97,15 +97,17 @@ public static class PageService
     /// <summary>
     /// Makes sure <paramref name="day"/> has a divider (adding a year divider when the year changes) and returns the
     /// paragraph where typing for that day continues: the last paragraph of its section.
-    /// New days are only appended after the latest one; an older missing day returns null instead of being inserted.
+    /// Normally the day is appended; if later days already exist (e.g. the PC clock was set back) it is inserted in
+    /// date order instead.
     /// </summary>
-    public static Paragraph? EnsureDay(FlowDocument doc, DateTime day, string language)
+    public static Paragraph EnsureDay(FlowDocument doc, DateTime day, string language)
     {
         day = day.Date;
         var days = Days(doc);
         var existing = days.FirstOrDefault(d => d.Day == day).Divider;
         if (existing is not null) return LastParagraphOfSection(doc, existing);
-        if (days.Count > 0 && days[^1].Day > day) return null;
+        var nextIndex = days.FindIndex(d => d.Day > day);
+        if (nextIndex >= 0) return InsertDayBefore(doc, days, nextIndex, day, language);
 
         // drop a trailing empty paragraph so the new day follows the text directly
         if (doc.Blocks.LastBlock is Paragraph last && IsEmpty(last) && doc.Blocks.Count > 1) doc.Blocks.Remove(last);
@@ -114,6 +116,21 @@ public static class PageService
         doc.Blocks.Add(CreateDayDivider(day, language));
         var p = new Paragraph();
         doc.Blocks.Add(p);
+        return p;
+    }
+
+    private static Paragraph InsertDayBefore(FlowDocument doc, List<(DateTime Day, BlockUIContainer Divider)> days, int nextIndex,
+        DateTime day, string language)
+    {
+        var next = days[nextIndex];
+        var previousYear = nextIndex > 0 ? days[nextIndex - 1].Day.Year : (int?)null;
+        // the next day's own year divider stays with it, so the new day goes in front of that divider
+        Block anchor = next.Divider.PreviousBlock is { } before && YearOf(before) == next.Day.Year ? before : next.Divider;
+        if (previousYear != day.Year) doc.Blocks.InsertBefore(anchor, CreateYearDivider(day.Year, language));
+        doc.Blocks.InsertBefore(anchor, CreateDayDivider(day, language));
+        var p = new Paragraph();
+        doc.Blocks.InsertBefore(anchor, p);
+        if (YearOf(anchor) is null && next.Day.Year != day.Year) doc.Blocks.InsertBefore(next.Divider, CreateYearDivider(next.Day.Year, language));
         return p;
     }
 
