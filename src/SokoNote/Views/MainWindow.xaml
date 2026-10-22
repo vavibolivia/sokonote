@@ -62,6 +62,8 @@
         <DataTemplate x:Key="TopicTemplate" DataType="{x:Type models:Topic}">
             <DockPanel>
                 <Ellipse Width="9" Height="9" Fill="{Binding Color, Converter={StaticResource HexToBrush}}" Margin="0,0,9,0" VerticalAlignment="Center"/>
+                <TextBlock DockPanel.Dock="Right" Text="&#xE8A5;" Style="{StaticResource Icon}" FontSize="11" Foreground="{StaticResource SidebarMuted}" Margin="0,0,6,0"
+                           VerticalAlignment="Center" ToolTip="{DynamicResource S.TopicKindInfo}" Visibility="{Binding IsInfo, Converter={StaticResource BoolToVis}}"/>
                 <Border DockPanel.Dock="Right" Background="#2A3148" CornerRadius="9" Padding="7,1" MinWidth="22" VerticalAlignment="Center">
                     <TextBlock Text="{Binding EntryCount}" FontSize="11" Foreground="{StaticResource SidebarMuted}" HorizontalAlignment="Center"/>
                 </Border>
@@ -86,8 +88,10 @@
                     <Border DockPanel.Dock="Right" Background="{Binding Status, Converter={StaticResource StatusSoftBrush}}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Status, Converter={StaticResource StatusText}}" FontSize="10.5" Foreground="{Binding Status, Converter={StaticResource StatusBrush}}"/>
                     </Border>
-                    <TextBlock DockPanel.Dock="Right" Text="{Binding EntryDate, Converter={StaticResource ShortDate}}" Style="{StaticResource Caption}" Margin="0,0,8,0" VerticalAlignment="Center"
-                               Visibility="{Binding DataContext.IsDateMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisInv}}"/>
+                    <Border DockPanel.Dock="Right" Visibility="{Binding HasDate, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding EntryDate, Converter={StaticResource ShortDate}}" Style="{StaticResource Caption}" Margin="0,0,8,0" VerticalAlignment="Center"
+                                   Visibility="{Binding DataContext.IsDateMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisInv}}"/>
+                    </Border>
                     <TextBlock Text="{Binding TopicName}" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                 </DockPanel>
                 <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis" Text="{Binding Title}">
@@ -386,7 +390,7 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,14,4">
+                            <StackPanel x:Name="EntryDatePanel" Orientation="Horizontal" Margin="0,0,14,4">
                                 <TextBlock Text="{DynamicResource S.Date}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <DatePicker x:Name="EntryDatePicker" Width="150" SelectedDateChanged="EntryDatePicker_SelectedDateChanged" CalendarStyle="{x:Null}"/>
                             </StackPanel>

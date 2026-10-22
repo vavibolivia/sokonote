@@ -10,6 +10,13 @@
         <TextBlock x:Name="ErrorText" Foreground="{StaticResource Danger}" FontSize="12" Margin="2,4,0,0" Visibility="Collapsed"
                    Text="{DynamicResource S.TopicNameRequired}"/>
 
+        <TextBlock Text="{DynamicResource S.TopicKind}" Style="{StaticResource Caption}" Margin="0,14,0,4"/>
+        <StackPanel Orientation="Horizontal">
+            <RadioButton x:Name="KindJournal" GroupName="kind" Content="{DynamicResource S.TopicKindJournal}" IsChecked="True" Margin="0,0,16,0" VerticalContentAlignment="Center"/>
+            <RadioButton x:Name="KindInfo" GroupName="kind" Content="{DynamicResource S.TopicKindInfo}" VerticalContentAlignment="Center"/>
+        </StackPanel>
+        <TextBlock Text="{DynamicResource S.TopicKindHint}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+
         <TextBlock Text="{DynamicResource S.TopicColor}" Style="{StaticResource Caption}" Margin="0,14,0,4"/>
         <ItemsControl x:Name="Swatches">
             <ItemsControl.ItemsPanel>

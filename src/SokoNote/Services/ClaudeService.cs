@@ -246,7 +246,9 @@ public static class ClaudePromptBuilder
             // a topic page spans many days: its dates are the "## yyyy-MM-dd" lines inside, not one date/status for all
             block.AppendLine(e.IsPage
                 ? $"### [{e.TopicName}] {title} (one continuous page; '## date' lines mark days, text above the first one has no date)"
-                : string.Create(CultureInfo.InvariantCulture, $"### [{e.TopicName}] {e.EntryDate:yyyy-MM-dd} · {title} · status: {e.Status}"));
+                : e.HasDate
+                    ? string.Create(CultureInfo.InvariantCulture, $"### [{e.TopicName}] {e.EntryDate:yyyy-MM-dd} · {title} · status: {e.Status}")
+                    : $"### [{e.TopicName}] {title} (reference note, no date)");
             var body = e.PlainText.Trim();
             if (e.IsPage)
             {

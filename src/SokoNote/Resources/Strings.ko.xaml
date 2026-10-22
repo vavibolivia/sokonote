@@ -56,6 +56,12 @@
     <sys:String x:Key="S.TopicDialogEdit">주제 편집</sys:String>
     <sys:String x:Key="S.TopicName">주제 이름</sys:String>
     <sys:String x:Key="S.TopicNamePlaceholder">예) 프로젝트 A</sys:String>
+    <sys:String x:Key="S.TopicKind">유형</sys:String>
+    <sys:String x:Key="S.TopicKindJournal">날짜별 기록</sys:String>
+    <sys:String x:Key="S.TopicKindInfo">정보 정리 (날짜 없음)</sys:String>
+    <sys:String x:Key="S.TopicKindHint">정보 정리: 서버 정보·연락처처럼 날짜 없이 정보만 모아 두는 주제입니다. 제목순으로 보이며 언제든 바꿀 수 있습니다.</sys:String>
+    <sys:String x:Key="S.InfoListTitle">{0} — 정보 목록</sys:String>
+    <sys:String x:Key="S.InfoGroup">정보 (날짜 없음)</sys:String>
     <sys:String x:Key="S.TopicColor">색상</sys:String>
     <sys:String x:Key="S.TopicNameDuplicate">"{0}" 주제가 이미 있습니다. 다른 이름을 입력하세요.</sys:String>
     <sys:String x:Key="S.TopicNameRequired">주제 이름을 입력하세요.</sys:String>

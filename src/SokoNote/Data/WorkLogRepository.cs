@@ -82,15 +82,28 @@ public sealed class WorkLogRepository
     /// <summary>Adds columns introduced after version 1 to existing databases.</summary>
     private static void Migrate(SqliteConnection c)
     {
-        using var info = c.CreateCommand();
-        info.CommandText = "SELECT COUNT(*) FROM pragma_table_info('entries') WHERE name = 'is_page'";
-        if (Convert.ToInt32(info.ExecuteScalar(), CultureInfo.InvariantCulture) > 0) return;
-        using var alter = c.CreateCommand();
-        alter.CommandText = """
-            ALTER TABLE entries ADD COLUMN is_page INTEGER NOT NULL DEFAULT 0;
-            CREATE INDEX IF NOT EXISTS ix_entries_page ON entries(topic_id, is_page);
-            """;
-        alter.ExecuteNonQuery();
+        if (!HasColumn(c, "entries", "is_page"))
+            Run(c, """
+                ALTER TABLE entries ADD COLUMN is_page INTEGER NOT NULL DEFAULT 0;
+                CREATE INDEX IF NOT EXISTS ix_entries_page ON entries(topic_id, is_page);
+                """);
+        // 0 = dated journal, 1 = information topic (entries without dates)
+        if (!HasColumn(c, "topics", "kind")) Run(c, "ALTER TABLE topics ADD COLUMN kind INTEGER NOT NULL DEFAULT 0;");
+    }
+
+    private static bool HasColumn(SqliteConnection c, string table, string column)
+    {
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = $n";
+        cmd.Parameters.AddWithValue("$n", column);
+        return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
+    }
+
+    private static void Run(SqliteConnection c, string sql)
+    {
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.ExecuteNonQuery();
     }
 
     // ------------------------------------------------------------------ topics
@@ -101,7 +114,7 @@ public sealed class WorkLogRepository
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
             SELECT t.id, t.name, t.color, t.sort_order,
-                   (SELECT COUNT(*) FROM entries e WHERE e.topic_id = t.id AND e.is_page = 0)
+                   (SELECT COUNT(*) FROM entries e WHERE e.topic_id = t.id AND e.is_page = 0), t.kind
             FROM topics t ORDER BY t.sort_order, t.id
             """;
         using var r = cmd.ExecuteReader();
@@ -115,6 +128,7 @@ public sealed class WorkLogRepository
                 Color = r.GetString(2),
                 SortOrder = r.GetInt32(3),
                 EntryCount = r.GetInt32(4),
+                IsInfo = r.GetInt64(5) == 1,
             });
         }
         return list;
@@ -128,21 +142,22 @@ public sealed class WorkLogRepository
         return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
-    public Topic AddTopic(string name, string color)
+    public Topic AddTopic(string name, string color, bool isInfo = false)
     {
         name = NormalizeName(name);
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO topics(name, color, sort_order, created_at)
-            VALUES($n, $c, COALESCE((SELECT MAX(sort_order) FROM topics), 0) + 1, $t);
+            INSERT INTO topics(name, color, sort_order, created_at, kind)
+            VALUES($n, $c, COALESCE((SELECT MAX(sort_order) FROM topics), 0) + 1, $t, $k);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$n", name);
         cmd.Parameters.AddWithValue("$c", color);
         cmd.Parameters.AddWithValue("$t", Now());
+        cmd.Parameters.AddWithValue("$k", isInfo ? 1 : 0);
         var id = (long)cmd.ExecuteScalar()!;
-        return new Topic { Id = id, Name = name, Color = color };
+        return new Topic { Id = id, Name = name, Color = color, IsInfo = isInfo };
     }
 
     /// <summary>True when another topic already uses this name (trimmed, case-insensitive).</summary>
@@ -155,6 +170,12 @@ public sealed class WorkLogRepository
     public void RenameTopic(long id, string name)
     {
         Exec("UPDATE topics SET name=$n WHERE id=$id", ("$n", NormalizeName(name)), ("$id", id));
+    }
+
+    /// <summary>Switches a topic between dated journal and information list; entry dates are kept for switching back.</summary>
+    public void SetTopicKind(long id, bool isInfo)
+    {
+        Exec("UPDATE topics SET kind=$k WHERE id=$id", ("$k", isInfo ? 1 : 0), ("$id", id));
     }
 
     public void SetTopicColor(long id, string color)
@@ -199,7 +220,7 @@ public sealed class WorkLogRepository
         var text = q.IncludeFullText ? "e.plain_text" : "substr(e.plain_text, 1, 200)";
         var sql = $"""
             SELECT e.id, e.topic_id, t.name, t.color, e.entry_date, e.title, {text},
-                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at, e.is_page
+                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at, e.is_page, t.kind
             FROM entries e JOIN topics t ON t.id = e.topic_id
             WHERE 1=1
             """;
@@ -234,7 +255,11 @@ public sealed class WorkLogRepository
             sql += " AND e.status=$st";
             cmd.Parameters.AddWithValue("$st", (int)st);
         }
-        sql += " ORDER BY e.entry_date DESC, e.updated_at DESC, e.id DESC LIMIT $lim";
+        // date-based filters only make sense for dated journals: information topics have no dates
+        if (q.Date is not null || q.From is not null || q.To is not null) sql += " AND t.kind = 0";
+        sql += q.TitleOrder
+            ? " ORDER BY e.title COLLATE NOCASE, e.updated_at DESC, e.id DESC LIMIT $lim"
+            : " ORDER BY e.entry_date DESC, e.updated_at DESC, e.id DESC LIMIT $lim";
         cmd.Parameters.AddWithValue("$lim", Math.Max(1, q.Limit));
         cmd.CommandText = sql;
 
@@ -259,6 +284,7 @@ public sealed class WorkLogRepository
                 CreatedAt = ParseStamp(r.GetString(10)),
                 UpdatedAt = ParseStamp(r.GetString(11)),
                 IsPage = r.GetInt64(12) != 0,
+                HasDate = r.GetInt64(13) == 0,
             });
         }
         return list;
@@ -270,7 +296,7 @@ public sealed class WorkLogRepository
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
             SELECT e.id, e.topic_id, t.name, t.color, e.entry_date, e.title, e.plain_text,
-                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at, e.content, e.is_page
+                   e.status, e.paper_color, e.paper_style, e.created_at, e.updated_at, e.content, e.is_page, t.kind
             FROM entries e JOIN topics t ON t.id = e.topic_id WHERE e.id=$id
             """;
         cmd.Parameters.AddWithValue("$id", id);
@@ -294,6 +320,7 @@ public sealed class WorkLogRepository
             UpdatedAt = ParseStamp(r.GetString(11)),
             Content = r.IsDBNull(12) ? null : (byte[])r.GetValue(12),
             IsPage = r.GetInt64(13) != 0,
+            HasDate = r.GetInt64(14) == 0,
         };
     }
 
@@ -372,8 +399,8 @@ public sealed class WorkLogRepository
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = topicId is long t && t > 0
-            ? "SELECT DISTINCT entry_date FROM entries WHERE topic_id=$t AND is_page = 0"
-            : "SELECT DISTINCT entry_date FROM entries WHERE is_page = 0";
+            ? "SELECT DISTINCT e.entry_date FROM entries e JOIN topics t ON t.id = e.topic_id WHERE e.topic_id=$t AND e.is_page = 0 AND t.kind = 0"
+            : "SELECT DISTINCT e.entry_date FROM entries e JOIN topics t ON t.id = e.topic_id WHERE e.is_page = 0 AND t.kind = 0";
         if (topicId is long t2 && t2 > 0) cmd.Parameters.AddWithValue("$t", t2);
         using var r = cmd.ExecuteReader();
         var set = new HashSet<DateTime>();

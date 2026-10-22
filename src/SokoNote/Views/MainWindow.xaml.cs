@@ -248,7 +248,8 @@ public partial class MainWindow : Window
                 break;
             case nameof(MainViewModel.IsDateMode):
             case nameof(MainViewModel.IsPageMode):
-                DateNavPanel.Visibility = _vm.IsDateMode || _vm.IsPageMode ? Visibility.Visible : Visibility.Collapsed;
+            case nameof(MainViewModel.CalendarHasDates):
+                DateNavPanel.Visibility = _vm.CalendarHasDates ? Visibility.Visible : Visibility.Collapsed;
                 break;
             case nameof(MainViewModel.SelectedDate):
                 if (DateCalendar.SelectedDate != _vm.SelectedDate)
@@ -294,6 +295,7 @@ public partial class MainWindow : Window
                 if (doc.Blocks.Count == 0) doc.Blocks.Add(new Paragraph());
                 Editor.Document = doc;
                 EntryMetaPanel.Visibility = full.IsPage ? Visibility.Collapsed : Visibility.Visible;
+                EntryDatePanel.Visibility = full.HasDate ? Visibility.Visible : Visibility.Collapsed; // information notes have no date
                 DeleteEntryButton.Visibility = full.IsPage ? Visibility.Collapsed : Visibility.Visible;
                 ApplyPaper(full.PaperColor, full.PaperStyle);
                 TopicCombo.SelectedValue = full.TopicId;
@@ -428,6 +430,8 @@ public partial class MainWindow : Window
         entry.TopicId = t.Id;
         entry.TopicName = t.Name;
         entry.TopicColor = t.Color;
+        entry.HasDate = !t.IsInfo;
+        EntryDatePanel.Visibility = entry.HasDate ? Visibility.Visible : Visibility.Collapsed;
         SaveNow();
         _vm.FollowEntry(entry);
     }
@@ -561,7 +565,7 @@ public partial class MainWindow : Window
     {
         var dlg = new TopicDialog(this, null, null, name => _vm.Repo.TopicNameExists(name));
         if (dlg.ShowDialog() != true) return null;
-        return _vm.AddTopic(dlg.TopicName, dlg.Color);
+        return _vm.AddTopic(dlg.TopicName, dlg.Color, dlg.IsInfo);
     }
 
     private static Topic? TopicFromMenu(object sender) => (sender as FrameworkElement)?.DataContext as Topic;
@@ -573,8 +577,10 @@ public partial class MainWindow : Window
 
     private void EditTopic(Topic t)
     {
-        var dlg = new TopicDialog(this, t.Name, t.Color, name => _vm.Repo.TopicNameExists(name, t.Id));
+        var dlg = new TopicDialog(this, t.Name, t.Color, name => _vm.Repo.TopicNameExists(name, t.Id), t.IsInfo);
         if (dlg.ShowDialog() != true) return;
+        SaveNow();
+        _vm.SetTopicKind(t, dlg.IsInfo);
         if (dlg.TopicName != t.Name) _vm.RenameTopic(t, dlg.TopicName);
         if (!string.Equals(dlg.Color, t.Color, StringComparison.OrdinalIgnoreCase)) _vm.SetTopicColor(t, dlg.Color);
     }

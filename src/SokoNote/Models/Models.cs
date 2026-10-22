@@ -11,6 +11,9 @@ public partial class Topic : ObservableObject
     [ObservableProperty] private string _color = "#5B8DEF";
     [ObservableProperty] private int _entryCount;
 
+    /// <summary>An "information" topic lists notes without dates (server info, contacts…) instead of a dated journal.</summary>
+    [ObservableProperty] private bool _isInfo;
+
     public int SortOrder { get; set; }
     public bool IsAll => Id == 0;
 }
@@ -46,6 +49,9 @@ public partial class Entry : ObservableObject
     [ObservableProperty] private string _paperColor = "#FFFDF5";
     [ObservableProperty] private PaperStyle _paperStyle;
     [ObservableProperty] private DateTime _updatedAt = DateTime.Now;
+
+    /// <summary>False for entries of an information topic: they have no date (the stored one is kept for switching back).</summary>
+    [ObservableProperty] private bool _hasDate = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
@@ -84,4 +90,7 @@ public sealed class EntryQuery
 
     /// <summary>Also return topic pages (normally only dated entries are listed).</summary>
     public bool IncludePages { get; set; }
+
+    /// <summary>Sort by title (information topics) instead of newest date first.</summary>
+    public bool TitleOrder { get; set; }
 }

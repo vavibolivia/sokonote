@@ -82,6 +82,12 @@ public partial class MainViewModel : ObservableObject
     }
 
     public bool IsSearching => !string.IsNullOrWhiteSpace(SearchText);
+
+    /// <summary>The selected topic just lists information: no dates, no date navigation, sorted by title.</summary>
+    public bool SelectedTopicIsInfo => SelectedTopic is { IsAll: false, IsInfo: true };
+
+    /// <summary>Whether the date navigation (◀ date ▶, calendar) applies to what is shown.</summary>
+    public bool CalendarHasDates => (IsDateMode || IsPageMode) && !(SelectedTopicIsInfo && !IsPageMode);
     public long? SelectedTopicId => SelectedTopic is { IsAll: false } t ? t.Id : null;
     public string SelectedDateText => Loc.LongDate(SelectedDate);
 
@@ -142,9 +148,9 @@ public partial class MainViewModel : ObservableObject
         if (Topics.Count > 0 && Topics[0].IsAll) Topics[0].EntryCount = fresh.Values.Sum(t => t.EntryCount);
     }
 
-    public Topic AddTopic(string name, string color)
+    public Topic AddTopic(string name, string color, bool isInfo = false)
     {
-        var t = Repo.AddTopic(name, color);
+        var t = Repo.AddTopic(name, color, isInfo);
         LoadTopics(t.Id);
         return t;
     }
@@ -163,6 +169,17 @@ public partial class MainViewModel : ObservableObject
     private void UpdateListCaptionIfListMode()
     {
         if (!IsPageMode) UpdateListCaption();
+    }
+
+    /// <summary>Switches a topic between dated journal and information list.</summary>
+    public void SetTopicKind(Topic t, bool isInfo)
+    {
+        if (t.IsInfo == isInfo) return;
+        Repo.SetTopicKind(t.Id, isInfo);
+        t.IsInfo = isInfo;
+        OnPropertyChanged(nameof(SelectedTopicIsInfo));
+        OnPropertyChanged(nameof(CalendarHasDates));
+        RefreshEntries(CurrentEntry?.Id);
     }
 
     public void SetTopicColor(Topic t, string color)
@@ -207,6 +224,8 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedTopicChanged(Topic? value)
     {
+        OnPropertyChanged(nameof(SelectedTopicIsInfo));
+        OnPropertyChanged(nameof(CalendarHasDates));
         if (!_suppressRefresh) RefreshEntries();
     }
 
@@ -214,6 +233,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsByDateView));
         OnPropertyChanged(nameof(IsAllView));
+        OnPropertyChanged(nameof(CalendarHasDates));
         if (!_suppressRefresh) RefreshEntries();
     }
 
@@ -221,6 +241,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsByDateView));
         OnPropertyChanged(nameof(IsAllView));
+        OnPropertyChanged(nameof(CalendarHasDates));
         if (value) IsReadAllMode = false;
         if (!_suppressRefresh) RefreshEntries();
     }
@@ -263,6 +284,7 @@ public partial class MainViewModel : ObservableObject
             q.Search = SearchText;
             q.IncludePages = true; // text written in one-page mode must be findable too
         }
+        else if (SelectedTopicIsInfo) q.TitleOrder = true; // an information topic has no dates: list everything by title
         else if (IsDateMode) q.Date = SelectedDate.Date;
         if (StatusFilterIndex > 0) q.Status = (EntryStatus)(StatusFilterIndex - 1);
         return q;
@@ -385,6 +407,7 @@ public partial class MainViewModel : ObservableObject
         {
             ListTitle = Loc.T("S.AllEntries");
         }
+        if (!IsSearching && SelectedTopicIsInfo) ListTitle = Loc.F("S.InfoListTitle", SelectedTopic!.Name);
         var topic = SelectedTopic is { IsAll: false } t ? t.Name : Loc.T("S.AllTopics");
         ListSubtitle = IsListTruncated
             ? Loc.F("S.ListCountTruncated", topic, Entries.Count)
@@ -443,6 +466,7 @@ public partial class MainViewModel : ObservableObject
         item.TopicName = saved.TopicName;
         item.TopicColor = saved.TopicColor;
         item.EntryDate = saved.EntryDate;
+        item.HasDate = saved.HasDate;
         item.UpdatedAt = saved.UpdatedAt;
         item.PaperColor = saved.PaperColor;
     }

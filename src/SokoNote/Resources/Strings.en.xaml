@@ -56,6 +56,12 @@
     <sys:String x:Key="S.TopicDialogEdit">Edit topic</sys:String>
     <sys:String x:Key="S.TopicName">Topic name</sys:String>
     <sys:String x:Key="S.TopicNamePlaceholder">e.g. Project A</sys:String>
+    <sys:String x:Key="S.TopicKind">Type</sys:String>
+    <sys:String x:Key="S.TopicKindJournal">Dated journal</sys:String>
+    <sys:String x:Key="S.TopicKindInfo">Information (no dates)</sys:String>
+    <sys:String x:Key="S.TopicKindHint">Information: a topic that just collects notes without dates (server info, contacts…). Listed by title; can be switched any time.</sys:String>
+    <sys:String x:Key="S.InfoListTitle">{0} — information</sys:String>
+    <sys:String x:Key="S.InfoGroup">Information (no date)</sys:String>
     <sys:String x:Key="S.TopicColor">Color</sys:String>
     <sys:String x:Key="S.TopicNameDuplicate">A topic named "{0}" already exists. Choose another name.</sys:String>
     <sys:String x:Key="S.TopicNameRequired">Enter a topic name.</sys:String>

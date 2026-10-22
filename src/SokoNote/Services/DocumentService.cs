@@ -197,10 +197,11 @@ public static class DocumentService
         DateTime? lastDate = null;
         foreach (var e in all.Take(maxEntries))
         {
-            if (lastDate != e.EntryDate.Date)
+            var group = e.HasDate ? e.EntryDate.Date : DateTime.MinValue; // information notes share one "no date" heading
+            if (lastDate != group)
             {
-                lastDate = e.EntryDate.Date;
-                doc.Blocks.Add(new Paragraph(new Run(Loc.LongDate(e.EntryDate)))
+                lastDate = group;
+                doc.Blocks.Add(new Paragraph(new Run(e.HasDate ? Loc.LongDate(e.EntryDate) : Loc.T("S.InfoGroup")))
                 {
                     FontSize = 20,
                     FontWeight = FontWeights.Bold,
@@ -394,7 +395,9 @@ public static class ExportNaming
     {
         var name = entry.IsPage
             ? $"{today:yyyy-MM-dd} {Loc.F("S.PageTitle", entry.TopicName)}"
-            : $"{entry.EntryDate:yyyy-MM-dd} {(string.IsNullOrWhiteSpace(entry.Title) ? Loc.T("S.Untitled") : entry.Title)}";
+            : entry.HasDate
+                ? $"{entry.EntryDate:yyyy-MM-dd} {(string.IsNullOrWhiteSpace(entry.Title) ? Loc.T("S.Untitled") : entry.Title)}"
+                : (string.IsNullOrWhiteSpace(entry.Title) ? Loc.T("S.Untitled") : entry.Title);
         foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
         return name;
     }
@@ -405,7 +408,8 @@ public static class ExportNaming
         var nl = Environment.NewLine;
         return entry.IsPage
             ? Loc.F("S.PageTitle", entry.TopicName) + nl + nl
-            : entry.Title + nl + $"[{entry.TopicName}] {Loc.LongDate(entry.EntryDate)} · {Loc.T("S.Status." + entry.Status)}" + nl + nl;
+            : entry.Title + nl + (entry.HasDate ? $"[{entry.TopicName}] {Loc.LongDate(entry.EntryDate)} · " : $"[{entry.TopicName}] ")
+              + Loc.T("S.Status." + entry.Status) + nl + nl;
     }
 }
 
