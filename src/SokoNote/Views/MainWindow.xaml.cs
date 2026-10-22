@@ -146,7 +146,7 @@ public partial class MainWindow : Window
         if (double.TryParse(repo.GetSetting("ui.height"), NumberStyles.Float, CultureInfo.InvariantCulture, out var h) && h >= MinHeight) Height = h;
         if (double.TryParse(repo.GetSetting("ui.left"), NumberStyles.Float, CultureInfo.InvariantCulture, out var l)
             && double.TryParse(repo.GetSetting("ui.top"), NumberStyles.Float, CultureInfo.InvariantCulture, out var t)
-            && l > -Width + 100 && t > -50 && l < SystemParameters.VirtualScreenWidth - 100 && t < SystemParameters.VirtualScreenHeight - 100)
+            && WindowPlacement.IsReachable(l, t, Width, WindowPlacement.VirtualScreen))
         {
             WindowStartupLocation = WindowStartupLocation.Manual;
             Left = l;
