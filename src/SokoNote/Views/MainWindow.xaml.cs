@@ -953,6 +953,12 @@ public partial class MainWindow : Window
     private void InsertLink_Executed(object sender, ExecutedRoutedEventArgs e)
     {
         if (_vm.CurrentEntry is null) return;
+        if (_vm.CurrentEntry.IsPage && !Editor.Selection.IsEmpty && SelectionHasDivider(Editor.Selection))
+        {
+            // the link would replace the selection, date included: refuse before asking for a URL
+            SaveStatus.Text = Loc.T("S.PageDividerLocked");
+            return;
+        }
         var existing = FindHyperlink(Editor.Selection.Start) ?? FindHyperlink(Editor.Selection.End);
         if (existing is not null) EditHyperlink(existing);
         else InsertNewHyperlink();

@@ -279,6 +279,34 @@ public class PageModeUiTests
         finally { w.Close(); }
     });
 
+    [Fact]
+    public void Inserting_a_link_over_a_date_is_refused_before_the_dialog() => UiThread.Run(() =>
+    {
+        // regression: Ctrl+K over a selection with a date asked for a URL, then the divider protection undid it all
+        var (w, _, _, errors) = OpenPage();
+        var dialogOpened = false;
+        // if the dialog does open, close it so the test fails instead of hanging on a modal window
+        var closer = new System.Windows.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(1500), System.Windows.Threading.DispatcherPriority.Normal, (s, _) =>
+        {
+            foreach (var d in Application.Current.Windows.OfType<LinkDialog>().ToList()) { dialogOpened = true; d.Close(); }
+        }, w.Dispatcher);
+        try
+        {
+            var doc = w.Editor.Document;
+            var y = PageService.Days(doc).Single(d => d.Day == Yesterday).Divider;
+            w.Editor.Selection.Select(y.ElementStart.GetPositionAtOffset(-3) ?? y.ElementStart, y.ElementEnd.GetPositionAtOffset(2) ?? y.ElementEnd);
+
+            AppCommands.InsertLink.Execute(null, w);
+            UiThread.Pump(TimeSpan.FromMilliseconds(100));
+
+            Assert.False(dialogOpened);
+            Assert.Equal(3, PageService.CountDividers(doc));
+            Assert.Equal(Loc.T("S.PageDividerLocked"), w.SaveStatus.Text);
+            Assert.Empty(errors);
+        }
+        finally { closer.Stop(); w.Close(); }
+    });
+
     // ------------------------------------------------------------ moving between days
 
     [Fact]
