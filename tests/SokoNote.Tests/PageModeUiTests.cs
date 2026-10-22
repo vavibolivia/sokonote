@@ -307,6 +307,46 @@ public class PageModeUiTests
         finally { closer.Stop(); w.Close(); }
     });
 
+    [Theory]
+    [InlineData("plain text")]
+    [InlineData("https://example.com")]                                      // the URL path of the paste handler too
+    public void Pasting_over_a_date_is_refused(string pasted) => UiThread.Run(() =>
+    {
+        // regression: the paste replaced the date, the divider protection undid it, and the pasted text vanished
+        var (w, _, _, errors) = OpenPage();
+        try
+        {
+            var doc = w.Editor.Document;
+            var y = PageService.Days(doc).Single(d => d.Day == Yesterday).Divider;
+            w.Editor.Selection.Select(y.ElementStart.GetPositionAtOffset(-3) ?? y.ElementStart, y.ElementEnd.GetPositionAtOffset(2) ?? y.ElementEnd);
+
+            // raise the paste event directly: never touch the real clipboard from a test
+            var args = new DataObjectPastingEventArgs(new DataObject(DataFormats.UnicodeText, pasted), false, DataFormats.UnicodeText);
+            w.Editor.RaiseEvent(args);
+
+            Assert.True(args.CommandCancelled);
+            Assert.Equal(3, PageService.CountDividers(doc));
+            Assert.Equal(Loc.T("S.PageDividerLocked"), w.SaveStatus.Text);
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
+    public void Pasting_inside_a_day_still_works() => UiThread.Run(() =>
+    {
+        var (w, _, _, errors) = OpenPage();
+        try
+        {
+            w.Editor.CaretPosition = w.Editor.Document.ContentEnd;
+            var args = new DataObjectPastingEventArgs(new DataObject(DataFormats.UnicodeText, "붙여넣기"), false, DataFormats.UnicodeText);
+            w.Editor.RaiseEvent(args);
+            Assert.False(args.CommandCancelled);
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
     // ------------------------------------------------------------ moving between days
 
     [Fact]

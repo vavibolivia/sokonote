@@ -1145,6 +1145,13 @@ public partial class MainWindow : Window
 
     private void Editor_Pasting(object sender, DataObjectPastingEventArgs e)
     {
+        if (_vm.CurrentEntry is { IsPage: true } && !Editor.Selection.IsEmpty && SelectionHasDivider(Editor.Selection))
+        {
+            // the paste would replace a date; the divider protection would then undo it and the pasted text would vanish
+            e.CancelCommand();
+            SaveStatus.Text = Loc.T("S.PageDividerLocked");
+            return;
+        }
         // Pasted rich content from browsers/Word can be huge: keep it to formatted text, no embedded objects.
         if (e.DataObject.GetDataPresent(DataFormats.Rtf) || e.DataObject.GetDataPresent(DataFormats.UnicodeText))
         {
