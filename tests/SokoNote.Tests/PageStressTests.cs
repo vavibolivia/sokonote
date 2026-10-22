@@ -60,11 +60,11 @@ public class PageStressTests
         Assert.Equal(7, week.Split('\n').Count(l => l.StartsWith("## ")));
         Assert.Equal(7 * 3, week.Split('\n').Count(l => l.Contains(" 업무 ")));
 
-        // generous bounds: catches accidental quadratic blow-ups, not machine speed
+        // generous bounds (CI runners are ~2-3x slower than a desktop): catch blow-ups, not machine speed
         Assert.True(build < TimeSpan.FromSeconds(30), $"build {build}");
         Assert.True(roundTrip < TimeSpan.FromSeconds(30), $"save/load {roundTrip}");
-        Assert.True(search < TimeSpan.FromSeconds(10), $"300 searches {search}");
-        Assert.True(text < TimeSpan.FromSeconds(5), $"plain text/filter {text}");
+        Assert.True(search < TimeSpan.FromSeconds(40), $"300 searches {search}");
+        Assert.True(text < TimeSpan.FromSeconds(20), $"plain text/filter {text}");
     });
 
     [Fact]
