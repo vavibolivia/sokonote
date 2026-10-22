@@ -360,6 +360,16 @@ public static class PageService
     public static void Load(FlowDocument doc, byte[]? data, string language)
     {
         DocumentService.Load(doc, data);
+        ReplaceMarkers(doc, (day, year) => day is { } d ? CreateDayDivider(d, language) : CreateYearDivider(year!.Value, language));
+        EnsureDatelessArea(doc);
+    }
+
+    /// <summary>
+    /// Turns marker paragraphs into blocks made by <paramref name="make"/> (day, or year when day is null) and restores
+    /// user text that was escaped because it looked like a marker.
+    /// </summary>
+    private static void ReplaceMarkers(FlowDocument doc, Func<DateTime?, int?, Block> make)
+    {
         foreach (var p in doc.Blocks.OfType<Paragraph>().ToList())
         {
             // cheap pre-check (most paragraphs are ordinary text): markers start with "[[soko" in their first run
@@ -374,29 +384,30 @@ public static class PageService
             }
             var m = Marker.Match(text);
             if (!m.Success) continue;
-            Block divider = m.Groups["d"].Success && TryParseIso(m.Groups["d"].Value, out var day)
-                ? CreateDayDivider(day, language)
-                : CreateYearDivider(int.Parse(m.Groups["y"].Value, CultureInfo.InvariantCulture), language);
-            doc.Blocks.InsertBefore(p, divider);
+            var block = m.Groups["d"].Success && TryParseIso(m.Groups["d"].Value, out var day)
+                ? make(day, null)
+                : make(null, int.Parse(m.Groups["y"].Value, CultureInfo.InvariantCulture));
+            doc.Blocks.InsertBefore(p, block);
             doc.Blocks.Remove(p);
         }
-        EnsureDatelessArea(doc);
     }
 
     /// <summary>A copy with dividers turned into ordinary bold paragraphs, for RTF/print where UI elements are dropped.</summary>
-    public static FlowDocument CloneForExport(FlowDocument page, string language) =>
-        CopyReplacingDividers(page, b =>
+    public static FlowDocument CloneForExport(FlowDocument page, string language)
+    {
+        // same fast route as saving: serialize once (dividers become markers), load, and turn markers into text
+        var copy = new FlowDocument { FontFamily = page.FontFamily, FontSize = page.FontSize };
+        DocumentService.Load(copy, Save(page));
+        ReplaceMarkers(copy, (day, year) => new Paragraph(new Run(day is { } d ? DayLabel(d, language) : YearLabel(year!.Value, language)))
         {
-            var isYear = YearOf(b) is not null;
-            return new Paragraph(new Run(isYear ? YearLabel(YearOf(b)!.Value, language) : DayLabel(DayOf(b)!.Value, language)))
-            {
-                FontWeight = FontWeights.Bold,
-                FontSize = isYear ? 18 : 15,
-                Margin = new Thickness(0, 16, 0, 4),
-                BorderBrush = Brushes.Gray,
-                BorderThickness = new Thickness(0, 0, 0, isYear ? 0 : 1),
-            };
+            FontWeight = FontWeights.Bold,
+            FontSize = day is null ? 18 : 15,
+            Margin = new Thickness(0, 16, 0, 4),
+            BorderBrush = Brushes.Gray,
+            BorderThickness = new Thickness(0, 0, 0, day is null ? 0 : 1),
         });
+        return copy;
+    }
 
     /// <summary>
     /// Copies a page without touching it: the text between dividers is copied with its formatting through XamlPackage

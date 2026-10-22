@@ -115,6 +115,20 @@ public class PageStressTests
     });
 
     [Fact]
+    public void Exporting_a_year_long_page_is_quick() => Sta.Run(() =>
+    {
+        // export/print used the segment-by-segment copy (~1 s per year of notes)
+        var doc = BuildPage(new DateTime(2025, 1, 1), 365, 3);
+        PageService.CloneForExport(doc, "ko");                                   // warm-up
+        var sw = Stopwatch.StartNew();
+        var copy = PageService.CloneForExport(doc, "ko");
+        var took = sw.Elapsed;
+        Assert.Equal(0, PageService.CountDividers(copy));
+        Assert.Contains("10월 22일 (수)", new TextRange(copy.ContentStart, copy.ContentEnd).Text);
+        Assert.True(took < TimeSpan.FromMilliseconds(600), $"export copy took {took.TotalMilliseconds:F0} ms");
+    });
+
+    [Fact]
     public void Repeated_save_load_cycles_do_not_drift() => Sta.Run(() =>
     {
         var doc = BuildPage(new DateTime(2026, 9, 1), 40, 2);
