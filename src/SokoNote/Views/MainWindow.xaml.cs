@@ -394,6 +394,9 @@ public partial class MainWindow : Window
                 Dispatcher.BeginInvoke(() =>
                 {
                     if (Editor.CanUndo) Editor.Undo();
+                    // the refused edit now sits on the redo stack: drop the history so Ctrl+Y cannot replay it
+                    Editor.IsUndoEnabled = false;
+                    Editor.IsUndoEnabled = true;
                     _dividerCount = PageService.CountDividers(Editor.Document);
                     SaveStatus.Text = Loc.T("S.PageDividerLocked");
                     RefreshPageDays();

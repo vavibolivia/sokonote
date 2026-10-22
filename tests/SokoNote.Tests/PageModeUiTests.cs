@@ -412,6 +412,29 @@ public class PageModeUiTests
         finally { w.Close(); }
     });
 
+    [Fact]
+    public void Redo_cannot_bring_back_a_refused_deletion() => UiThread.Run(() =>
+    {
+        // the protection reverts a forbidden edit with Undo; that edit must not be redoable afterwards
+        var (w, _, _, errors) = OpenPage();
+        try
+        {
+            var doc = w.Editor.Document;
+            w.Editor.Focus();
+            w.Editor.Selection.Select(doc.ContentStart, doc.ContentEnd);
+            EditingCommands.Delete.Execute(null, w.Editor);
+            UiThread.Pump(TimeSpan.FromMilliseconds(300));
+            Assert.Equal(3, PageService.CountDividers(doc));                     // refused
+
+            ApplicationCommands.Redo.Execute(null, w.Editor);
+            UiThread.Pump(TimeSpan.FromMilliseconds(300));
+            Assert.Equal(3, PageService.CountDividers(doc));                     // still there
+            Assert.Contains("어제 메모", DocText(w));
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
     // ------------------------------------------------------------ moving between days
 
     [Fact]
