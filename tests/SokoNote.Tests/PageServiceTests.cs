@@ -85,6 +85,29 @@ public class PageServiceTests
     });
 
     [Fact]
+    public void Text_that_looks_like_a_marker_stays_text() => Sta.Run(() =>
+    {
+        // regression: typing/pasting "[[soko-day:…]]" turned into a locked, out-of-order divider after reopening
+        var doc = new FlowDocument();
+        var p = PageService.EnsureDay(doc, new DateTime(2026, 10, 22), "ko")!;
+        p.Inlines.Add(new Run("[[soko-day:2020-01-01]]"));
+        doc.Blocks.Add(new Paragraph(new Run("[[soko-year:1999]]")));
+
+        var back = new FlowDocument();
+        PageService.Load(back, PageService.Save(doc), "ko");
+
+        Assert.Equal(2, PageService.CountDividers(back));                     // 2026년 + 10월 22일 only
+        var text = new TextRange(back.ContentStart, back.ContentEnd).Text;
+        Assert.Contains("[[soko-day:2020-01-01]]", text);
+        Assert.Contains("[[soko-year:1999]]", text);
+
+        // and it stays text across further saves
+        var again = new FlowDocument();
+        PageService.Load(again, PageService.Save(back), "ko");
+        Assert.Equal(2, PageService.CountDividers(again));
+    });
+
+    [Fact]
     public void Plain_documents_saved_without_markers_load_unchanged() => Sta.Run(() =>
     {
         var doc = new FlowDocument();

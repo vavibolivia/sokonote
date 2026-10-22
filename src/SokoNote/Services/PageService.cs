@@ -216,9 +216,24 @@ public static class PageService
     private static string MarkerText(Block divider) =>
         DayOf(divider) is { } day ? $"[[soko-day:{day.ToString(DateFormat, CultureInfo.InvariantCulture)}]]" : $"[[soko-year:{YearOf(divider)}]]";
 
+    /// <summary>Appended on save to user text that happens to look like a marker, so it is not read back as a divider.</summary>
+    private const char MarkerEscape = (char)0x200B; // zero-width space
+
     /// <summary>Serializes a page for storage: dividers become marker paragraphs, everything else keeps its formatting.</summary>
-    public static byte[] Save(FlowDocument page) =>
-        DocumentService.Save(CopyReplacingDividers(page, b => new Paragraph(new Run(MarkerText(b)))));
+    public static byte[] Save(FlowDocument page)
+    {
+        var markers = new HashSet<Paragraph>();
+        var copy = CopyReplacingDividers(page, b =>
+        {
+            var p = new Paragraph(new Run(MarkerText(b)));
+            markers.Add(p);
+            return p;
+        });
+        foreach (var p in copy.Blocks.OfType<Paragraph>().ToList())
+            if (!markers.Contains(p) && Marker.IsMatch(new TextRange(p.ContentStart, p.ContentEnd).Text.Trim()))
+                p.Inlines.Add(new Run(MarkerEscape.ToString()));
+        return DocumentService.Save(copy);
+    }
 
     /// <summary>Loads a stored page and turns marker paragraphs back into dividers.</summary>
     public static void Load(FlowDocument doc, byte[]? data, string language)
@@ -226,7 +241,15 @@ public static class PageService
         DocumentService.Load(doc, data);
         foreach (var p in doc.Blocks.OfType<Paragraph>().ToList())
         {
-            var m = Marker.Match(new TextRange(p.ContentStart, p.ContentEnd).Text.Trim());
+            var text = new TextRange(p.ContentStart, p.ContentEnd).Text.Trim();
+            if (text.Length > 0 && text[^1] == MarkerEscape && Marker.IsMatch(text[..^1]))
+            {
+                // user text that looks like a marker: drop the escape so it reads exactly as typed
+                var end = p.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+                new TextRange(end.GetPositionAtOffset(-1, LogicalDirection.Backward) ?? end, end).Text = "";
+                continue;
+            }
+            var m = Marker.Match(text);
             if (!m.Success) continue;
             Block divider = m.Groups["d"].Success && TryParseIso(m.Groups["d"].Value, out var day)
                 ? CreateDayDivider(day, language)
