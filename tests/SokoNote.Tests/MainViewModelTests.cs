@@ -141,6 +141,21 @@ public sealed class MainViewModelTests : IDisposable
     });
 
     [Fact]
+    public void Renaming_the_topic_of_the_open_page_updates_the_page_title() => UiThread.Run(() => // real strings: the title must contain the name
+    {
+        var (vm, _) = Create();
+        var a = vm.AddTopic("옛 이름", "#111111");
+        vm.IsPageMode = true;
+        Assert.Equal(Services.Loc.F("S.PageTitle", "옛 이름"), vm.ListTitle);
+
+        vm.RenameTopic(vm.RealTopics.Single(), "새 이름");
+
+        Assert.Equal(Services.Loc.F("S.PageTitle", "새 이름"), vm.ListTitle);
+        Assert.Equal("새 이름", vm.CurrentEntry?.TopicName);
+        _ = a;
+    });
+
+    [Fact]
     public void Date_navigation_filters_the_list() => Sta.Run(() =>
     {
         var (vm, _) = Create();

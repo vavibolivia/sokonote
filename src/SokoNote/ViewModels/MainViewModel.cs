@@ -135,6 +135,14 @@ public partial class MainViewModel : ObservableObject
         t.Name = name.Trim();
         foreach (var e in Entries.Where(e => e.TopicId == t.Id)) e.TopicName = t.Name;
         if (CurrentEntry?.TopicId == t.Id) CurrentEntry.TopicName = t.Name;
+        if (IsPageMode && SelectedTopic?.Id == t.Id) ListTitle = Loc.F("S.PageTitle", t.Name);
+        UpdateListCaptionIfListMode();
+    }
+
+    /// <summary>The list subtitle names the selected topic; refresh it after a rename (page mode has its own title).</summary>
+    private void UpdateListCaptionIfListMode()
+    {
+        if (!IsPageMode) UpdateListCaption();
     }
 
     public void SetTopicColor(Topic t, string color)
