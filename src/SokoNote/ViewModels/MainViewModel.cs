@@ -177,6 +177,9 @@ public partial class MainViewModel : ObservableObject
         if (t.IsInfo == isInfo) return;
         Repo.SetTopicKind(t.Id, isInfo);
         t.IsInfo = isInfo;
+        // entries already loaded (the list and the open one, which a refresh keeps) follow the new type right away
+        foreach (var e in Entries.Where(e => e.TopicId == t.Id)) e.HasDate = !isInfo;
+        if (CurrentEntry?.TopicId == t.Id) CurrentEntry.HasDate = !isInfo;
         OnPropertyChanged(nameof(SelectedTopicIsInfo));
         OnPropertyChanged(nameof(CalendarHasDates));
         RefreshEntries(CurrentEntry?.Id);

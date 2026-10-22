@@ -8,6 +8,39 @@ namespace SokoNote.Tests;
 public class InfoTopicUiTests
 {
     [Fact]
+    public void Switching_the_type_updates_the_open_entry() => UiThread.Run(() =>
+    {
+        // regression: the open entry stayed open across the switch, so its date field did not follow the new type
+        var (w, _, errors) = UiThread.OpenMainWindow(r =>
+        {
+            var t = r.AddTopic("업무", "#222222");
+            r.InsertEntry(new Entry { TopicId = t.Id, Title = "회의", EntryDate = DateTime.Today, PlainText = "x" });
+            r.SetSetting("ui.viewMode", "all");
+        });
+        try
+        {
+            var vm = (MainViewModel)w.DataContext;
+            vm.SelectedTopic = vm.Topics.Single(t => t.Name == "업무");
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+            Assert.Equal("회의", vm.CurrentEntry?.Title);
+            Assert.Equal(Visibility.Visible, w.EntryDatePanel.Visibility);
+
+            vm.SetTopicKind(vm.SelectedTopic!, isInfo: true);
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+            Assert.Equal("회의", vm.CurrentEntry?.Title);                        // still the same entry…
+            Assert.False(vm.CurrentEntry!.HasDate);
+            Assert.False(vm.Entries.Single().HasDate);
+            Assert.Equal(Visibility.Collapsed, w.EntryDatePanel.Visibility);      // …now without a date field
+
+            vm.SetTopicKind(vm.SelectedTopic!, isInfo: false);
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+            Assert.Equal(Visibility.Visible, w.EntryDatePanel.Visibility);
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
     public void Information_topic_shows_no_dates_in_the_window() => UiThread.Run(() =>
     {
         var (w, repo, errors) = UiThread.OpenMainWindow(r =>

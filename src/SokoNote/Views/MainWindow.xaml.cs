@@ -338,6 +338,8 @@ public partial class MainWindow : Window
 
     private void CurrentEntry_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(Entry.HasDate) && sender is Entry changed)
+            EntryDatePanel.Visibility = changed.HasDate ? Visibility.Visible : Visibility.Collapsed; // topic type switched
         if (_loading) return;
         if (e.PropertyName is nameof(Entry.Title) or nameof(Entry.Status) or nameof(Entry.EntryDate) or nameof(Entry.TopicId))
             MarkDirty();
