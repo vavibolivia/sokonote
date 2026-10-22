@@ -317,7 +317,15 @@ public static class LinkNormalizer
     public static bool TryNormalize(string? input, out Uri uri)
     {
         uri = null!;
-        var s = (input ?? "").Trim();
+        var s = (input ?? "").Trim().Trim('"').Trim();
+        if (s.StartsWith(@"\\", StringComparison.Ordinal) || s.StartsWith("//", StringComparison.Ordinal)) return false; // network paths are never opened
+        if (s.Length > 3 && char.IsAsciiLetter(s[0]) && s[1] == ':' && (s[2] == '\\' || s[2] == '/'))
+        {
+            // a local path such as C:\docs\보고서.docx (spaces allowed) becomes a file link
+            if (!Path.IsPathFullyQualified(s) || !Uri.TryCreate(s, UriKind.Absolute, out var file) || !file.IsFile) return false;
+            uri = file;
+            return true;
+        }
         if (s.Length == 0 || s.Contains(' ')) return false;
         if (!s.Contains("://", StringComparison.Ordinal) && !s.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
         {

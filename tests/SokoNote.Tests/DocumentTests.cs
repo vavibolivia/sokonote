@@ -155,6 +155,26 @@ public class DocumentTests
     }
 
     [Theory]
+    [InlineData(@"C:\docs\보고서.docx", "C:\\docs\\보고서.docx")]
+    [InlineData(@"D:\공유 폴더\회의록.pdf", "D:\\공유 폴더\\회의록.pdf")]
+    [InlineData("\"C:\\docs\\a b.xlsx\"", "C:\\docs\\a b.xlsx")]            // "Copy as path" adds quotes
+    public void Link_normalizer_turns_windows_paths_into_file_links(string input, string expectedPath)
+    {
+        // regression: "C:\docs\a.docx" became "https://c/docs/a.docx", a broken web link
+        Assert.True(LinkNormalizer.TryNormalize(input, out var uri));
+        Assert.True(uri.IsFile);
+        Assert.Equal(expectedPath, uri.LocalPath);
+    }
+
+    [Theory]
+    [InlineData(@"\\server\share\doc.docx")]     // network paths are never opened (credential leak), so refuse them up front
+    [InlineData(@"C:relative\path.txt")]
+    public void Link_normalizer_rejects_unusable_paths(string input)
+    {
+        Assert.False(LinkNormalizer.TryNormalize(input, out _));
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("hello")]
