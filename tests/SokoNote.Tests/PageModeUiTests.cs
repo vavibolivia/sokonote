@@ -206,6 +206,53 @@ public class PageModeUiTests
     });
 
     [Fact]
+    public void Backspace_below_an_empty_date_removes_it() => UiThread.Run(() =>
+    {
+        // a date added by mistake (or by the previous version automatically) can be taken back while it is empty
+        var (w, vm, _, errors) = OpenPage();
+        try
+        {
+            AppCommands.InsertToday.Execute(null, w);
+            Assert.Equal(3, PageService.Days(w.Editor.Document).Count);
+            Assert.Equal(Today, DayAtCaret(w));
+
+            Assert.True(PressKey(w, w.Editor, Key.Back, Keyboard.PreviewKeyDownEvent));
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+
+            Assert.Equal(new[] { TwoDaysAgo, Yesterday }, PageService.Days(w.Editor.Document).Select(d => d.Day));
+            Assert.Equal(2, vm.PageDays.Count);
+            Assert.Contains("어제 메모", DocText(w));                            // nothing else touched
+            Assert.Equal(Loc.F("S.PageDayRemoved", PageService.DayLabel(Today, Loc.Language)), w.SaveStatus.Text);
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
+    public void Old_page_starting_with_a_date_gets_a_dateless_line_on_top() => UiThread.Run(() =>
+    {
+        var (w, _, _, errors) = OpenPage(r =>
+        {
+            var t = r.AddTopic("옛 페이지", "#5B8DEF");
+            var doc = new FlowDocument();
+            PageService.EnsureDay(doc, Today, "ko");
+            doc.Blocks.Remove(doc.Blocks.FirstBlock);                         // starts with "2026년" like the old version saved it
+            var page = r.GetOrCreatePage(t.Id);
+            page.Content = PageService.Save(doc);
+            r.UpdateEntry(page);
+        });
+        try
+        {
+            var first = Assert.IsType<Paragraph>(w.Editor.Document.Blocks.FirstBlock);
+            w.Editor.CaretPosition = first.ContentStart;
+            w.Editor.CaretPosition.InsertTextInRun("날짜 없는 메모");
+            Assert.Null(DayAtCaret(w));                                         // belongs to no date
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
     public void Deleting_or_overtyping_a_selection_with_a_divider_is_undone() => UiThread.Run(() =>
     {
         var (w, _, _, errors) = OpenPage();

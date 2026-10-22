@@ -129,6 +129,51 @@ public class PageServiceTests
     });
 
     [Fact]
+    public void A_page_that_starts_with_a_divider_gets_a_dateless_area_above_it() => Sta.Run(() =>
+    {
+        // regression: an old page began with "2026년" so there was nowhere to write without a date
+        var doc = new FlowDocument();
+        PageService.EnsureDay(doc, new DateTime(2026, 10, 22), "ko");
+        doc.Blocks.Remove(doc.Blocks.FirstBlock);                                // as saved by the previous version
+        Assert.True(PageService.IsDivider(doc.Blocks.FirstBlock));
+
+        var back = new FlowDocument();
+        PageService.Load(back, PageService.Save(doc), "ko");
+        Assert.IsType<Paragraph>(back.Blocks.FirstBlock);
+        Assert.True(PageService.IsDivider(back.Blocks.FirstBlock.NextBlock));
+    });
+
+    [Fact]
+    public void An_empty_day_can_be_removed_but_not_one_with_notes() => Sta.Run(() =>
+    {
+        var doc = new FlowDocument(new Paragraph(new Run("날짜 없는 메모")));
+        PageService.EnsureDay(doc, new DateTime(2026, 10, 21), "ko").Inlines.Add(new Run("21일 메모"));
+        PageService.EnsureDay(doc, new DateTime(2026, 10, 22), "ko");             // empty
+
+        var d21 = PageService.Days(doc)[0].Divider;
+        var d22 = PageService.Days(doc)[1].Divider;
+        Assert.False(PageService.IsSectionEmpty(d21));
+        Assert.True(PageService.IsSectionEmpty(d22));
+        Assert.Null(PageService.RemoveEmptyDay(doc, d21));                       // has notes: stays
+        Assert.NotNull(PageService.RemoveEmptyDay(doc, d22));
+
+        Assert.Equal(new[] { new DateTime(2026, 10, 21) }, PageService.Days(doc).Select(d => d.Day));
+        Assert.Equal(2, PageService.CountDividers(doc));                         // 2026년 stays: 21일 still in it
+    });
+
+    [Fact]
+    public void Removing_the_last_day_of_a_year_also_removes_the_year() => Sta.Run(() =>
+    {
+        var doc = new FlowDocument(new Paragraph(new Run("메모")));
+        PageService.EnsureDay(doc, new DateTime(2026, 10, 22), "ko");
+        var caret = PageService.RemoveEmptyDay(doc, PageService.Days(doc)[0].Divider);
+
+        Assert.NotNull(caret);
+        Assert.Equal(0, PageService.CountDividers(doc));
+        Assert.Equal("메모", new TextRange(doc.ContentStart, doc.ContentEnd).Text.Trim());
+    });
+
+    [Fact]
     public void Plain_documents_saved_without_markers_load_unchanged() => Sta.Run(() =>
     {
         var doc = new FlowDocument();

@@ -1115,7 +1115,7 @@ public partial class MainWindow : Window
         if (_vm.CurrentEntry.IsPage && WouldRemoveDivider(e.Key))
         {
             e.Handled = true;
-            SaveStatus.Text = Loc.T("S.PageDividerLocked");
+            if (!TryRemoveEmptyDayBeforeCaret(e.Key)) SaveStatus.Text = Loc.T("S.PageDividerLocked");
             return;
         }
         if (e.Key is not (Key.Space or Key.Enter) || Keyboard.Modifiers != ModifierKeys.None) return;
@@ -1549,6 +1549,32 @@ public partial class MainWindow : Window
         if (key == Key.Back && new TextRange(para.ContentStart, sel.Start).Text.Length == 0) return PageService.IsDivider(para.PreviousBlock);
         if (key == Key.Delete && new TextRange(sel.Start, para.ContentEnd).Text.Length == 0) return PageService.IsDivider(para.NextBlock);
         return false;
+    }
+
+    /// <summary>
+    /// Backspace right below a date that has nothing written under it removes that date (e.g. one added by mistake);
+    /// dates with notes stay locked.
+    /// </summary>
+    private bool TryRemoveEmptyDayBeforeCaret(Key key)
+    {
+        if (key != Key.Back || !Editor.Selection.IsEmpty || Editor.Selection.Start.Paragraph is not { } para) return false;
+        if (para.PreviousBlock is not BlockUIContainer divider || PageService.DayOf(divider) is null || !PageService.IsSectionEmpty(divider)) return false;
+        var label = PageService.DayLabel(PageService.DayOf(divider)!.Value, Loc.Language);
+        Editor.BeginChange();
+        try
+        {
+            var caret = PageService.RemoveEmptyDay(Editor.Document, divider);
+            _dividerCount = PageService.CountDividers(Editor.Document); // a deliberate removal, not one to undo
+            if (caret is not null) Editor.CaretPosition = caret.ContentEnd;
+        }
+        finally
+        {
+            Editor.EndChange();
+        }
+        MarkDirty();
+        RefreshPageDays();
+        SaveStatus.Text = Loc.F("S.PageDayRemoved", label);
+        return true;
     }
 
     private bool SelectionHasDivider(TextRange sel) =>

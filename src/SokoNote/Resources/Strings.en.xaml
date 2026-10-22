@@ -14,7 +14,8 @@
     <sys:String x:Key="S.PageTitle">{0} — one page</sys:String>
     <sys:String x:Key="S.PagePickTopic">Pick a topic on the left</sys:String>
     <sys:String x:Key="S.PageDayCount">{0} days · click a day to jump to it</sys:String>
-    <sys:String x:Key="S.PageDividerLocked">Date dividers cannot be deleted or edited.</sys:String>
+    <sys:String x:Key="S.PageDayRemoved">Removed the empty date {0}.</sys:String>
+    <sys:String x:Key="S.PageDividerLocked">A date with notes cannot be deleted or edited. (An empty date can be removed with Backspace right below it.)</sys:String>
     <sys:String x:Key="S.PageDateNotFound">This page has nothing for {0}. For today, use [Insert today].</sys:String>
     <sys:String x:Key="S.PageTextNotFound">Could not find "{0}".</sys:String>
     <sys:String x:Key="S.PageInsertToday">Insert today</sys:String>

@@ -103,6 +103,7 @@ public static class PageService
     public static Paragraph EnsureDay(FlowDocument doc, DateTime day, string language)
     {
         day = day.Date;
+        EnsureDatelessArea(doc); // the first date never takes the very top of the page
         var days = Days(doc);
         var existing = days.FirstOrDefault(d => d.Day == day).Divider;
         if (existing is not null) return LastParagraphOfSection(doc, existing);
@@ -132,6 +133,49 @@ public static class PageService
         doc.Blocks.InsertBefore(anchor, p);
         if (YearOf(anchor) is null && next.Day.Year != day.Year) doc.Blocks.InsertBefore(next.Divider, CreateYearDivider(next.Day.Year, language));
         return p;
+    }
+
+    /// <summary>A page always starts with a paragraph: the place for notes that belong to no date.</summary>
+    public static void EnsureDatelessArea(FlowDocument doc)
+    {
+        if (doc.Blocks.FirstBlock is null || IsDivider(doc.Blocks.FirstBlock))
+        {
+            if (doc.Blocks.FirstBlock is { } first) doc.Blocks.InsertBefore(first, new Paragraph());
+            else doc.Blocks.Add(new Paragraph());
+        }
+    }
+
+    /// <summary>True when nothing has been written under this day (only empty paragraphs until the next divider).</summary>
+    public static bool IsSectionEmpty(BlockUIContainer dayDivider)
+    {
+        for (var b = dayDivider.NextBlock; b is not null && !IsDivider(b); b = b.NextBlock)
+            if (b is not Paragraph p || new TextRange(p.ContentStart, p.ContentEnd).Text.Trim().Length > 0) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a day that has no notes (e.g. added by mistake) together with its empty lines, and its year divider when
+    /// no other day of that year is left. Days with notes are never removed (returns null).
+    /// Returns the paragraph where the caret should go.
+    /// </summary>
+    public static Paragraph? RemoveEmptyDay(FlowDocument doc, BlockUIContainer dayDivider)
+    {
+        if (DayOf(dayDivider) is not { } day || !IsSectionEmpty(dayDivider)) return null;
+        while (dayDivider.NextBlock is { } b && !IsDivider(b)) doc.Blocks.Remove(b);
+        var before = dayDivider.PreviousBlock;
+        doc.Blocks.Remove(dayDivider);
+        if (YearOf(before) == day.Year && (before!.NextBlock is null || DayOf(before.NextBlock) is not { } next || next.Year != day.Year))
+        {
+            var yearDivider = before;
+            before = yearDivider.PreviousBlock;
+            doc.Blocks.Remove(yearDivider);
+        }
+        if (before is Paragraph p) return p;
+        // previous is a divider (or nothing): give the caret an empty line there
+        var line = new Paragraph();
+        if (before is null) { if (doc.Blocks.FirstBlock is { } f) doc.Blocks.InsertBefore(f, line); else doc.Blocks.Add(line); }
+        else doc.Blocks.InsertAfter(before, line);
+        return line;
     }
 
     /// <summary>The last paragraph before the next divider (creates one when the section is empty).</summary>
@@ -274,6 +318,7 @@ public static class PageService
             doc.Blocks.InsertBefore(p, divider);
             doc.Blocks.Remove(p);
         }
+        EnsureDatelessArea(doc);
     }
 
     /// <summary>A copy with dividers turned into ordinary bold paragraphs, for RTF/print where UI elements are dropped.</summary>
