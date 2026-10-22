@@ -8,6 +8,36 @@ namespace SokoNote.Tests;
 public class InfoTopicUiTests
 {
     [Fact]
+    public void Topic_right_click_menu_switches_the_type() => UiThread.Run(() =>
+    {
+        var (w, repo, errors) = UiThread.OpenMainWindow(r => r.AddTopic("서버 정보", "#222222"));
+        try
+        {
+            var vm = (MainViewModel)w.DataContext;
+            var topic = vm.RealTopics.Single();
+            var menu = (System.Windows.Controls.ContextMenu)w.FindResource("TopicMenu");
+            menu.DataContext = topic;                                             // what the right-clicked row provides
+            UiThread.Pump(TimeSpan.FromMilliseconds(100));                        // bindings update at DataBind priority
+            var kind = menu.Items.OfType<System.Windows.Controls.MenuItem>().Single(i => Equals(i.Header, Services.Loc.T("S.TopicKind")));
+            var journal = (System.Windows.Controls.MenuItem)kind.Items[0];
+            var info = (System.Windows.Controls.MenuItem)kind.Items[1];
+            Assert.True(journal.IsChecked);                                       // the current type is ticked
+            Assert.False(info.IsChecked);
+
+            info.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+            UiThread.Pump(TimeSpan.FromMilliseconds(100));
+            Assert.True(topic.IsInfo);
+            Assert.True(repo.GetTopics().Single().IsInfo);                       // saved
+            Assert.True(info.IsChecked);
+
+            journal.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+            Assert.False(repo.GetTopics().Single().IsInfo);
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
     public void Switching_the_type_updates_the_open_entry() => UiThread.Run(() =>
     {
         // regression: the open entry stayed open across the switch, so its date field did not follow the new type

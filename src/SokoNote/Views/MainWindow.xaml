@@ -45,6 +45,12 @@
         <ContextMenu x:Key="TopicMenu">
             <MenuItem Header="{DynamicResource S.Rename}" Click="TopicRename_Click"/>
             <MenuItem Header="{DynamicResource S.ChangeColor}" Click="TopicColor_Click"/>
+            <MenuItem Header="{DynamicResource S.TopicKind}">
+                <MenuItem Header="{DynamicResource S.TopicKindJournal}" Click="TopicKindJournal_Click"
+                          IsChecked="{Binding IsInfo, Converter={StaticResource InverseBool}, Mode=OneWay}"/>
+                <MenuItem Header="{DynamicResource S.TopicKindInfo}" Click="TopicKindInfo_Click"
+                          IsChecked="{Binding IsInfo, Mode=OneWay}"/>
+            </MenuItem>
             <Separator/>
             <MenuItem Header="{DynamicResource S.MoveUp}" Click="TopicUp_Click"/>
             <MenuItem Header="{DynamicResource S.MoveDown}" Click="TopicDown_Click"/>

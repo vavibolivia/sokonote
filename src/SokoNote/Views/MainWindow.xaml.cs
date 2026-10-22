@@ -597,6 +597,17 @@ public partial class MainWindow : Window
         if (TopicFromMenu(sender) is { IsAll: false } t) EditTopic(t);
     }
 
+    // right-click → 유형: switch between dated journal and information list without opening the dialog
+    private void TopicKindJournal_Click(object sender, RoutedEventArgs e) => SwitchTopicKind(sender, isInfo: false);
+    private void TopicKindInfo_Click(object sender, RoutedEventArgs e) => SwitchTopicKind(sender, isInfo: true);
+
+    private void SwitchTopicKind(object sender, bool isInfo)
+    {
+        if (TopicFromMenu(sender) is not { IsAll: false } t) return;
+        SaveNow();
+        _vm.SetTopicKind(t, isInfo);
+    }
+
     private void TopicUp_Click(object sender, RoutedEventArgs e)
     {
         if (TopicFromMenu(sender) is { IsAll: false } t) _vm.MoveTopic(t, -1);
