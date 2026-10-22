@@ -252,7 +252,7 @@ public sealed class WorkLogRepository
                 EntryDate = ParseDate(r.GetString(4)),
                 Title = r.GetString(5),
                 PlainText = q.IncludeFullText ? plain : "",
-                Preview = MakePreview(plain),
+                Preview = MakePreview(plain, isPage: r.GetInt64(12) != 0),
                 Status = (EntryStatus)r.GetInt32(7),
                 PaperColor = r.GetString(8),
                 PaperStyle = (PaperStyle)r.GetInt32(9),
@@ -286,7 +286,7 @@ public sealed class WorkLogRepository
             EntryDate = ParseDate(r.GetString(4)),
             Title = r.GetString(5),
             PlainText = plain,
-            Preview = MakePreview(plain),
+            Preview = MakePreview(plain, isPage: r.GetInt64(13) != 0),
             Status = (EntryStatus)r.GetInt32(7),
             PaperColor = r.GetString(8),
             PaperStyle = (PaperStyle)r.GetInt32(9),
@@ -313,7 +313,7 @@ public sealed class WorkLogRepository
         e.Id = (long)cmd.ExecuteScalar()!;
         e.CreatedAt = now;
         e.UpdatedAt = now;
-        e.Preview = MakePreview(e.PlainText);
+        e.Preview = MakePreview(e.PlainText, e.IsPage);
         return e.Id;
     }
 
@@ -332,7 +332,7 @@ public sealed class WorkLogRepository
         cmd.Parameters.AddWithValue("$id", e.Id);
         if (cmd.ExecuteNonQuery() == 0) throw new InvalidOperationException($"Entry {e.Id} no longer exists.");
         e.UpdatedAt = now;
-        e.Preview = MakePreview(e.PlainText);
+        e.Preview = MakePreview(e.PlainText, e.IsPage);
     }
 
     private static void BindEntry(SqliteCommand cmd, Entry e)
@@ -467,9 +467,19 @@ public sealed class WorkLogRepository
     internal static string EscapeLike(string s) =>
         s.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 
-    internal static string MakePreview(string? plain)
+    private static readonly System.Text.RegularExpressions.Regex PageDayLine = new(@"^## \d{4}-\d{2}-\d{2} (.*)$");
+
+    internal static string MakePreview(string? plain, bool isPage = false)
     {
         if (string.IsNullOrEmpty(plain)) return "";
+        if (isPage)
+        {
+            // page text carries "# 2026년" / "## 2026-10-22 10월 22일 (목)" lines for search and Claude: show them as dates
+            var lines = plain.Replace("\r\n", "\n").Split('\n')
+                .Where(l => !l.StartsWith("# ", StringComparison.Ordinal))
+                .Select(l => PageDayLine.Match(l) is { Success: true } m ? "· " + m.Groups[1].Value : l);
+            plain = string.Join("\n", lines);
+        }
         var span = plain.Length > 200 ? plain[..200] : plain;
         var flat = string.Join(' ', span.Split(new[] { '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries)).Trim();
         return flat.Length > 140 ? flat[..140] + "…" : flat;

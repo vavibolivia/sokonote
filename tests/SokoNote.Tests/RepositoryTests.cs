@@ -314,6 +314,21 @@ public sealed class RepositoryTests : IDisposable
     }
 
     [Fact]
+    public void Page_preview_reads_like_text_not_like_markers()
+    {
+        // regression: a page hit in search results previewed as "# 2026년 ## 2026-10-22 10월 22일 (목) …"
+        var t = _repo.AddTopic("A", "#111111");
+        var page = _repo.GetOrCreatePage(t.Id);
+        page.PlainText = "맨 위 메모\n# 2026년\n## 2026-10-22 10월 22일 (목)\n배포 일정 확정";
+        _repo.UpdateEntry(page);
+
+        var hit = _repo.QueryEntries(new EntryQuery { IncludePages = true, Search = "배포" }).Single();
+        Assert.Equal("맨 위 메모 · 10월 22일 (목) 배포 일정 확정", hit.Preview);
+        Assert.DoesNotContain("##", hit.Preview);
+        Assert.DoesNotContain("2026-10-22", hit.Preview);
+    }
+
+    [Fact]
     public void Like_escaping()
     {
         Assert.Equal(@"a\%b\_c\\d", WorkLogRepository.EscapeLike(@"a%b_c\d"));
