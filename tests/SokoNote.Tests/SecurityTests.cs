@@ -43,6 +43,32 @@ public class SecurityTests
         Assert.Equal(expected, LinkNormalizer.Classify(new Uri(path)));
     }
 
+    [Theory]
+    [InlineData("file:///C:/x/a.exe#.pdf")]
+    [InlineData("file:///C:/x/a.pdf?x=.exe")]
+    [InlineData("file:///C:/x/a.exe?.pdf")]
+    public void File_links_with_query_or_fragment_are_blocked(string url)
+    {
+        // regression: the check used LocalPath but the shell was given AbsoluteUri; extra URI parts made them differ
+        Assert.Equal(LinkOpenAction.Block, LinkNormalizer.Classify(new Uri(url)));
+    }
+
+    [Theory]
+    [InlineData(@"C:\docs\보고서#1.docx")]
+    [InlineData(@"C:\docs\100% 완료.pdf")]
+    public void Real_file_names_with_hash_or_percent_still_open_by_their_exact_path(string path)
+    {
+        var uri = new Uri(path);
+        Assert.Equal(LinkOpenAction.Open, LinkNormalizer.Classify(uri));
+        Assert.Equal(path, LinkNormalizer.LaunchTarget(uri));            // exactly the string that was checked
+    }
+
+    [Fact]
+    public void Web_links_launch_their_absolute_uri()
+    {
+        Assert.Equal("https://example.com/a?b=1", LinkNormalizer.LaunchTarget(new Uri("https://example.com/a?b=1")));
+    }
+
     [Fact]
     public void Existing_folders_open_in_explorer()
     {

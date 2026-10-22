@@ -438,6 +438,12 @@ public partial class MainWindow : Window
 
     private void NewEntry_Executed(object sender, ExecutedRoutedEventArgs e)
     {
+        if (_vm.IsPageMode)
+        {
+            // a page has no separate entries: "new" means continue writing today
+            if (_vm.CurrentEntry is { IsPage: true }) _vm.GoToday();
+            return;
+        }
         var topicId = _vm.SelectedTopicId ?? _vm.CurrentEntry?.TopicId ?? _vm.RealTopics.FirstOrDefault()?.Id;
         if (topicId is null)
         {
@@ -1015,7 +1021,7 @@ public partial class MainWindow : Window
             switch (LinkNormalizer.Classify(uri))
             {
                 case LinkOpenAction.Open:
-                    Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+                    Process.Start(new ProcessStartInfo(LinkNormalizer.LaunchTarget(uri)) { UseShellExecute = true });
                     break;
                 case LinkOpenAction.Reveal:
                     Process.Start(new ProcessStartInfo("explorer.exe") { ArgumentList = { "/select,", uri.LocalPath } });

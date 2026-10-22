@@ -352,6 +352,8 @@ public static class LinkNormalizer
         if (uri is null || !uri.IsAbsoluteUri) return LinkOpenAction.Block;
         if (uri.Scheme is "http" or "https" or "mailto") return LinkOpenAction.Open;
         if (uri.Scheme != "file" || uri.IsUnc || uri.LocalPath.StartsWith(@"\\", StringComparison.Ordinal)) return LinkOpenAction.Block;
+        // query/fragment are not part of LocalPath, so the checked path would not be what the shell receives
+        if (uri.Query.Length > 0 || uri.Fragment.Length > 0) return LinkOpenAction.Block;
         var path = uri.LocalPath;
         if (path.IndexOf(':', 2) >= 0) return LinkOpenAction.Reveal;                   // alternate data stream ("a.txt:x.exe")
         if (Directory.Exists(path)) return LinkOpenAction.Open;                       // a folder opens in Explorer
@@ -359,6 +361,12 @@ public static class LinkNormalizer
         if (trimmed.Length != path.Length) return LinkOpenAction.Reveal;              // Windows ignores trailing dots/spaces
         return SafeDocumentExtensions.Contains(Path.GetExtension(trimmed)) ? LinkOpenAction.Open : LinkOpenAction.Reveal;
     }
+
+    /// <summary>
+    /// The exact string handed to the shell: the same local path <see cref="Classify"/> checked for files
+    /// (never the re-encoded URI, which the shell may decode differently), the absolute URI for web/mail links.
+    /// </summary>
+    public static string LaunchTarget(Uri uri) => uri.IsFile ? uri.LocalPath : uri.AbsoluteUri;
 }
 
 public enum LinkOpenAction

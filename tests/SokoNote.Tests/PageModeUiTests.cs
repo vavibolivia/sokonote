@@ -270,6 +270,28 @@ public class PageModeUiTests
     });
 
     [Fact]
+    public void New_entry_in_page_mode_goes_to_today_instead_of_creating_a_hidden_card() => UiThread.Run(() =>
+    {
+        // regression: Ctrl+N in page mode inserted a dated entry the user never saw (the page reopened over it)
+        var (w, vm, repo, errors) = OpenPage();
+        try
+        {
+            vm.SelectedDate = TwoDaysAgo;
+            UiThread.Pump(TimeSpan.FromMilliseconds(100));
+            var before = repo.CountEntries();
+
+            AppCommands.NewEntry.Execute(null, w);
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+
+            Assert.Equal(before, repo.CountEntries());
+            Assert.True(vm.CurrentEntry?.IsPage);
+            Assert.Equal(Today, DayAtCaret(w));
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
+    [Fact]
     public void All_topics_in_page_mode_asks_to_pick_a_topic() => UiThread.Run(() =>
     {
         var (w, vm, _, errors) = OpenPage();
