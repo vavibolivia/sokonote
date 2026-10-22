@@ -156,6 +156,26 @@ public sealed class MainViewModelTests : IDisposable
     });
 
     [Fact]
+    public void Calendar_marks_follow_the_page_days_in_page_mode() => Sta.Run(() =>
+    {
+        // regression: in page mode the calendar still marked dated-entry days, never the page's days
+        var (vm, _) = Create();
+        var a = vm.AddTopic("A", "#111111");
+        vm.CreateEntry(a.Id);                                     // a dated card today
+        var pageDay = DateTime.Today.AddDays(-3);
+
+        vm.IsPageMode = true;
+        vm.SetPageDays(new[] { new PageDay(pageDay, "x", false) });
+        Assert.True(CalendarMarks.Contains(pageDay));
+        Assert.False(CalendarMarks.Contains(DateTime.Today));    // the card is not on the page
+
+        vm.IsPageMode = false;                                    // back to cards: their marks return
+        vm.IsDateMode = true;
+        Assert.True(CalendarMarks.Contains(DateTime.Today));
+        Assert.False(CalendarMarks.Contains(pageDay));
+    });
+
+    [Fact]
     public void Date_navigation_filters_the_list() => Sta.Run(() =>
     {
         var (vm, _) = Create();

@@ -306,6 +306,7 @@ public partial class MainViewModel : ObservableObject
         else
         {
             PageDays.Clear();
+            CalendarMarks.Set(new HashSet<DateTime>());
             ListTitle = Loc.T("S.PagePickTopic");
             if (CurrentEntry is not null) OpenEntryRequested?.Invoke(this, null);
         }
@@ -336,7 +337,9 @@ public partial class MainViewModel : ObservableObject
     {
         PageDays.Clear();
         foreach (var d in days) PageDays.Add(d);
-        if (IsPageMode) ListSubtitle = Loc.F("S.PageDayCount", PageDays.Count);
+        if (!IsPageMode) return;
+        ListSubtitle = Loc.F("S.PageDayCount", PageDays.Count);
+        CalendarMarks.Set(PageDays.Select(d => d.Date.Date).ToHashSet()); // the calendar navigates the page's days
     }
 
     private void UpdateListCaption()
