@@ -30,6 +30,21 @@ public static class Logger
 {
     private static readonly object Gate = new();
 
+    public const int KeepDays = 30;
+
+    /// <summary>Deletes daily logs ("sokonote-yyyyMMdd.log") older than <see cref="KeepDays"/> days; other files stay.</summary>
+    public static void PruneOldLogs(string dir, DateTime today)
+    {
+        if (!Directory.Exists(dir)) return;
+        var oldest = today.Date.AddDays(-(KeepDays - 1));
+        foreach (var f in new DirectoryInfo(dir).GetFiles("sokonote-*.log"))
+        {
+            var stamp = Path.GetFileNameWithoutExtension(f.Name)["sokonote-".Length..];
+            if (!DateTime.TryParseExact(stamp, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day) || day >= oldest) continue;
+            try { f.Delete(); } catch { /* in use or locked: next start */ }
+        }
+    }
+
     public static void Info(string message) => Write("INFO", message);
     public static void Error(string message, Exception? ex = null) => Write("ERROR", ex is null ? message : $"{message}\n{ex}");
 

@@ -86,6 +86,24 @@ public sealed class BackupTests : IDisposable
     }
 
     [Fact]
+    public void Old_daily_logs_are_pruned()
+    {
+        // logs were never deleted: one file per day of use, forever
+        var today = new DateTime(2026, 10, 22);
+        for (int d = 0; d < 40; d++) Touch($"sokonote-{today.AddDays(-d):yyyyMMdd}.log", DateTime.Now);
+        Touch("other.log", DateTime.Now.AddYears(-1));
+
+        Logger.PruneOldLogs(_dir, today);
+
+        var left = Directory.GetFiles(_dir).Select(Path.GetFileName).ToList();
+        Assert.Equal(Logger.KeepDays + 1, left.Count);                               // + the unrelated file
+        Assert.Contains($"sokonote-{today:yyyyMMdd}.log", left);
+        Assert.Contains($"sokonote-{today.AddDays(-(Logger.KeepDays - 1)):yyyyMMdd}.log", left);
+        Assert.DoesNotContain($"sokonote-{today.AddDays(-Logger.KeepDays):yyyyMMdd}.log", left);
+        Assert.Contains("other.log", left);
+    }
+
+    [Fact]
     public void Unrelated_files_are_left_alone()
     {
         Touch("notes.txt", DateTime.Now.AddYears(-1));

@@ -34,6 +34,7 @@ public partial class App : Application
             Repository = OpenRepository();
             Loc.Apply(Loc.Resolve(Repository.GetSetting("ui.language")));
             Logger.Info($"Startup · data={AppPaths.DataDir} · lang={Loc.Language}");
+            Logger.PruneOldLogs(AppPaths.LogDir, DateTime.Today);
             try { BackupService.RunDailyBackup(Repository); }
             catch (Exception ex) { Logger.Error("Daily backup failed", ex); }
         }
