@@ -347,6 +347,41 @@ public class PageModeUiTests
         finally { w.Close(); }
     });
 
+    [Fact]
+    public void Formatting_the_whole_page_keeps_every_date() => UiThread.Run(() =>
+    {
+        var (w, _, repo, errors) = OpenPage();
+        try
+        {
+            var doc = w.Editor.Document;
+            var days = PageService.Days(doc).Select(d => d.Day).ToList();
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            void Click(string handler, object? sender = null) =>
+                typeof(MainWindow).GetMethod(handler, flags)!.Invoke(w, new[] { sender ?? w, new RoutedEventArgs() });
+
+            w.Editor.Focus();
+            w.Editor.SelectAll();
+            EditingCommands.ToggleBold.Execute(null, w.Editor);
+            EditingCommands.ToggleItalic.Execute(null, w.Editor);
+            EditingCommands.IncreaseFontSize.Execute(null, w.Editor);
+            EditingCommands.AlignCenter.Execute(null, w.Editor);
+            Click("Strike_Click");
+            Click("LineSpacingItem_Click", new System.Windows.Controls.MenuItem { Tag = "1.5" });
+            w.Editor.SelectAll();
+            Click("ClearFormat_Click");
+            UiThread.Pump(TimeSpan.FromMilliseconds(200));
+
+            Assert.Equal(days, PageService.Days(doc).Select(d => d.Day));
+            Assert.Contains("어제 메모", DocText(w));
+            w.SaveNow();                                                          // and they survive saving
+            var back = new FlowDocument();
+            PageService.Load(back, repo.GetEntry(((MainViewModel)w.DataContext).CurrentEntry!.Id)!.Content, "ko");
+            Assert.Equal(days, PageService.Days(back).Select(d => d.Day));
+            Assert.Empty(errors);
+        }
+        finally { w.Close(); }
+    });
+
     // ------------------------------------------------------------ moving between days
 
     [Fact]
