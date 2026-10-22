@@ -193,6 +193,35 @@ public sealed class MainViewModelTests : IDisposable
     });
 
     [Fact]
+    public void Previous_and_next_on_a_page_skip_to_days_that_have_notes() => Sta.Run(() =>
+    {
+        // dates are only added on request, so most calendar days are not on the page: ◀ ▶ jump between the ones that are
+        var (vm, _) = Create();
+        vm.AddTopic("A", "#111111");
+        vm.IsPageMode = true;
+        var d10 = DateTime.Today.AddDays(-10);
+        var d5 = DateTime.Today.AddDays(-5);
+        vm.SetPageDays(new[] { new PageDay(d5, "5", false), new PageDay(d10, "10", false) });   // newest first, like the window
+        vm.SelectedDate = DateTime.Today;
+
+        vm.ShiftDay(-1);
+        Assert.Equal(d5, vm.SelectedDate);
+        vm.ShiftDay(-1);
+        Assert.Equal(d10, vm.SelectedDate);
+        vm.ShiftDay(-1);
+        Assert.Equal(d10, vm.SelectedDate);                                      // nothing earlier: stay
+        vm.ShiftDay(1);
+        Assert.Equal(d5, vm.SelectedDate);
+        vm.ShiftDay(1);
+        Assert.Equal(d5, vm.SelectedDate);                                       // nothing later: stay
+
+        vm.IsPageMode = false;                                                   // the card views keep day-by-day steps
+        vm.IsDateMode = true;
+        vm.ShiftDay(1);
+        Assert.Equal(d5.AddDays(1), vm.SelectedDate);
+    });
+
+    [Fact]
     public void Date_navigation_filters_the_list() => Sta.Run(() =>
     {
         var (vm, _) = Create();

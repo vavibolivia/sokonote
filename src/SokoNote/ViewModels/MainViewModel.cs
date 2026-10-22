@@ -483,7 +483,23 @@ public partial class MainViewModel : ObservableObject
         if (IsPageMode && SelectedDate.Date == DateTime.Today) PageDayRequested?.Invoke(this, DateTime.Today);
         SelectedDate = DateTime.Today;
     }
-    public void ShiftDay(int days) => SelectedDate = SelectedDate.AddDays(days);
+    /// <summary>
+    /// Previous/next day. On a page most calendar days have no section (dates are added on request), so there it
+    /// jumps to the nearest earlier/later day that is on the page and stays put when there is none.
+    /// </summary>
+    public void ShiftDay(int days)
+    {
+        if (!IsPageMode)
+        {
+            SelectedDate = SelectedDate.AddDays(days);
+            return;
+        }
+        var current = SelectedDate.Date;
+        var target = days < 0
+            ? PageDays.Select(d => d.Date.Date).Where(d => d < current).DefaultIfEmpty().Max()
+            : PageDays.Select(d => d.Date.Date).Where(d => d > current).DefaultIfEmpty(DateTime.MaxValue).Min();
+        if (target != default && target != DateTime.MaxValue) SelectedDate = target;
+    }
 }
 
 /// <summary>One day of a topic page, as listed in the middle column.</summary>

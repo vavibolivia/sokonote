@@ -450,9 +450,13 @@ public class PageModeUiTests
             UiThread.Pump(TimeSpan.FromMilliseconds(100));
             Assert.Equal(TwoDaysAgo, DayAtCaret(w));
 
-            vm.ShiftDay(-5);                                                    // no notes that day: caret stays, user is told
+            vm.ShiftDay(-1);                                                    // nothing earlier on the page: stays
             UiThread.Pump(TimeSpan.FromMilliseconds(100));
-            Assert.Equal(TwoDaysAgo, DayAtCaret(w));
+            Assert.Equal(TwoDaysAgo, vm.SelectedDate.Date);
+
+            vm.SelectedDate = TwoDaysAgo.AddDays(-5);                          // a calendar pick of a day with no notes
+            UiThread.Pump(TimeSpan.FromMilliseconds(100));
+            Assert.Equal(TwoDaysAgo, DayAtCaret(w));                            // caret stays, user is told
             Assert.Equal(Loc.F("S.PageDateNotFound", PageService.DayLabel(TwoDaysAgo.AddDays(-5), Loc.Language)), w.SaveStatus.Text);
 
             vm.GoToday();                                                       // today is not on the page: nothing is added
