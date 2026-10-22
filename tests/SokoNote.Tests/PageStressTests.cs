@@ -89,6 +89,18 @@ public class PageStressTests
     });
 
     [Fact]
+    public void Autosave_of_a_year_long_page_does_not_freeze_the_editor() => Sta.Run(() =>
+    {
+        // regression: every autosave of a page copied it segment by segment (~1 s for a year), freezing typing
+        var doc = BuildPage(new DateTime(2025, 1, 1), 365, 3);
+        PageService.Save(doc);                                                 // warm-up (JIT)
+        var sw = Stopwatch.StartNew();
+        for (int i = 0; i < 5; i++) PageService.Save(doc);
+        var perSave = sw.Elapsed / 5;
+        Assert.True(perSave < TimeSpan.FromMilliseconds(400), $"one autosave took {perSave.TotalMilliseconds:F0} ms");
+    });
+
+    [Fact]
     public void Repeated_save_load_cycles_do_not_drift() => Sta.Run(() =>
     {
         var doc = BuildPage(new DateTime(2026, 9, 1), 40, 2);

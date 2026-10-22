@@ -283,6 +283,66 @@ public static class PageService
     /// <summary>Serializes a page for storage: dividers become marker paragraphs, everything else keeps its formatting.</summary>
     public static byte[] Save(FlowDocument page)
     {
+        // Fast path (runs on every autosave): serialize once and swap the dividers' placeholders for markers in the
+        // XAML. The slow path copies segment by segment and is ~20x slower on a big page (≈1 s for a year of notes).
+        try
+        {
+            if (SaveByPatchingPackage(page) is { } fast) return fast;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Fast page save failed, using the segment copy", ex);
+        }
+        return SaveBySegments(page);
+    }
+
+    /// <summary>
+    /// TextRange.Save writes one top-level element per document block, in order; a divider comes out as an empty
+    /// paragraph. Those elements are replaced by marker paragraphs. Returns null when the block count does not
+    /// line up (then the caller falls back to the segment copy).
+    /// </summary>
+    private static byte[]? SaveByPatchingPackage(FlowDocument page)
+    {
+        var blocks = page.Blocks.ToList();
+        var bytes = DocumentService.Save(page);
+        using var ms = new System.IO.MemoryStream();
+        ms.Write(bytes);
+        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var entry = zip.Entries.FirstOrDefault(e => e.FullName.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)
+                                                       && e.FullName.Contains("Xaml/", StringComparison.OrdinalIgnoreCase))
+                        ?? zip.Entries.FirstOrDefault(e => e.FullName.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase));
+            if (entry is null) return null;
+            System.Xml.Linq.XDocument xaml;
+            using (var s = entry.Open()) xaml = System.Xml.Linq.XDocument.Load(s, System.Xml.Linq.LoadOptions.PreserveWhitespace);
+            var section = xaml.Root!;
+            var children = section.Elements().ToList();
+            if (children.Count != blocks.Count) return null;
+            var ns = section.Name.Namespace;
+            for (int i = 0; i < blocks.Count; i++)
+            {
+                var el = children[i];
+                if (IsDivider(blocks[i]))
+                {
+                    if (el.Name.LocalName != "Paragraph") return null;
+                    el.ReplaceWith(new System.Xml.Linq.XElement(ns + "Paragraph", new System.Xml.Linq.XElement(ns + "Run", MarkerText(blocks[i]))));
+                }
+                else if (el.Name.LocalName == "Paragraph" && Marker.IsMatch(el.Value.Trim()))
+                {
+                    el.Add(new System.Xml.Linq.XElement(ns + "Run", MarkerEscape.ToString())); // user text that looks like a marker
+                }
+            }
+            entry.Delete();
+            var replacement = zip.CreateEntry(entry.FullName);
+            using var w = replacement.Open();
+            xaml.Save(w, System.Xml.Linq.SaveOptions.DisableFormatting);
+        }
+        return ms.ToArray();
+    }
+
+    /// <summary>Slow but structure-independent: copies the page with dividers replaced, then saves the copy.</summary>
+    internal static byte[] SaveBySegments(FlowDocument page)
+    {
         var markers = new HashSet<Paragraph>();
         var copy = CopyReplacingDividers(page, b =>
         {

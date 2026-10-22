@@ -174,6 +174,41 @@ public class PageServiceTests
     });
 
     [Fact]
+    public void Fast_save_loads_back_exactly_like_the_segment_copy() => Sta.Run(() =>
+    {
+        // the fast path patches the serialized XAML in place; it must give the same page as the safe segment copy
+        var doc = new FlowDocument(new Paragraph(new Run("맨 위 날짜 없는 메모")));
+        var p = PageService.EnsureDay(doc, new DateTime(2026, 10, 21), "ko");
+        p.Inlines.Add(new Bold(new Run("굵게 ")));
+        p.Inlines.Add(new Hyperlink(new Run("링크")) { NavigateUri = new Uri("https://example.com/") });
+        var list = new List();
+        list.ListItems.Add(new ListItem(new Paragraph(new Run("목록 1"))));
+        list.ListItems.Add(new ListItem(new Paragraph(new Run("[[soko-day:2020-01-01]]"))));
+        doc.Blocks.Add(list);
+        var table = new Table();
+        var group = new TableRowGroup();
+        var row = new TableRow();
+        row.Cells.Add(new TableCell(new Paragraph(new Run("표 칸"))));
+        group.Rows.Add(row);
+        table.RowGroups.Add(group);
+        doc.Blocks.Add(table);
+        doc.Blocks.Add(new Paragraph(new Run("[[soko-year:1999]]")));
+        PageService.EnsureDay(doc, new DateTime(2027, 1, 2), "ko").Inlines.Add(new Run("새해"));
+
+        var fast = new FlowDocument();
+        PageService.Load(fast, PageService.Save(doc), "ko");
+        var slow = new FlowDocument();
+        PageService.Load(slow, PageService.SaveBySegments(doc), "ko");
+
+        Assert.Equal(PageService.GetPlainText(slow, "ko"), PageService.GetPlainText(fast, "ko"));
+        Assert.Equal(PageService.CountDividers(slow), PageService.CountDividers(fast));
+        Assert.Equal(4, PageService.CountDividers(fast));                          // 2026년, 21일, 2027년, 2일
+        Assert.Contains("[[soko-year:1999]]", new TextRange(fast.ContentStart, fast.ContentEnd).Text);
+        Assert.Single(fast.Blocks.OfType<Table>());
+        Assert.Single(fast.Blocks.OfType<List>());
+    });
+
+    [Fact]
     public void Plain_documents_saved_without_markers_load_unchanged() => Sta.Run(() =>
     {
         var doc = new FlowDocument();
