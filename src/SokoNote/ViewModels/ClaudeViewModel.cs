@@ -192,14 +192,17 @@ public partial class ClaudeViewModel : ObservableObject
             ClaudeScope.Last30Days => (DateTime.Today.AddDays(-29), DateTime.Today),
             _ => null,
         };
+        var withText = new List<Entry>();
         foreach (var p in pages)
         {
             if (range is { } r) p.PlainText = PageService.FilterDays(p.PlainText, r.Item1, r.Item2);
             if (p.PlainText.Trim().Length == 0) continue;
             if (string.IsNullOrWhiteSpace(p.Title)) p.Title = Loc.F("S.PageTitle", p.TopicName);
-            list.Add(p);
+            withText.Add(p);
         }
-        return list;
+        // pages first: they are usually the main notes and the prompt builder keeps their newest part within budget
+        withText.AddRange(list);
+        return withText;
 
         DateTime DayOf() => _main.IsDateMode || _main.IsPageMode ? _main.SelectedDate.Date : DateTime.Today;
     }

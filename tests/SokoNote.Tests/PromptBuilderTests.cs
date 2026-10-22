@@ -58,6 +58,36 @@ public class PromptBuilderTests
     }
 
     [Fact]
+    public void A_page_larger_than_the_budget_still_sends_its_newest_part()
+    {
+        // regression: an entry that did not fit was dropped whole, so a big page never reached Claude at all
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < 3000; i++) sb.Append("## 2026-").Append((i % 12 + 1).ToString("00")).Append("-01 day\n").Append(new string('x', 60)).Append(" line ").Append(i).Append('\n');
+        var text = sb.ToString() + "가장 최근 메모";
+        Assert.True(text.Length > ClaudePromptBuilder.MaxContextChars);
+        var page = new Entry { IsPage = true, TopicName = "A", Title = "A — 한 장", PlainText = text };
+
+        var p = ClaudePromptBuilder.Build("q", new[] { page }, "all", Array.Empty<ChatMessage>(), DateTime.Today, "ko");
+
+        Assert.Contains("가장 최근 메모", p);                                   // the newest notes (end of the page) are kept
+        Assert.DoesNotContain("line 0\n", p.Replace("\r", ""));                 // the oldest part is what gets cut
+        Assert.Contains("older part", p);
+        Assert.True(p.Length < ClaudePromptBuilder.MaxContextChars + 5000, $"prompt {p.Length}");
+    }
+
+    [Fact]
+    public void A_big_page_leaves_room_for_dated_entries()
+    {
+        var page = new Entry { IsPage = true, TopicName = "A", Title = "A — 한 장", PlainText = new string('p', 300_000) + "\n페이지 끝" };
+        var cards = Enumerable.Range(0, 30).Select(i => E($"카드{i}", new string('c', 1000))).ToList();
+        var p = ClaudePromptBuilder.Build("q", new[] { page }.Concat(cards).ToList(), "all", Array.Empty<ChatMessage>(), DateTime.Today, "ko");
+
+        Assert.Contains("페이지 끝", p);
+        Assert.Contains("카드0", p);                                              // the 40% left over is used for cards
+        Assert.True(p.Length < ClaudePromptBuilder.MaxContextChars + 5000, $"prompt {p.Length}");
+    }
+
+    [Fact]
     public void History_keeps_last_eight_without_errors()
     {
         var history = Enumerable.Range(0, 12)

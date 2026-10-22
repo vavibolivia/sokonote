@@ -247,7 +247,20 @@ public static class ClaudePromptBuilder
             block.AppendLine(e.IsPage
                 ? $"### [{e.TopicName}] {title} (one continuous page; '## date' lines mark days, text above the first one has no date)"
                 : string.Create(CultureInfo.InvariantCulture, $"### [{e.TopicName}] {e.EntryDate:yyyy-MM-dd} · {title} · status: {e.Status}"));
-            block.AppendLine(e.PlainText.Trim());
+            var body = e.PlainText.Trim();
+            if (e.IsPage)
+            {
+                // a page is one big entry: rather than dropping it, keep its newest part (the end) within budget,
+                // and leave room for other entries when there are some
+                var pageBudget = Math.Min(MaxContextChars - used, entries.Count > 1 ? MaxContextChars * 6 / 10 : MaxContextChars) - block.Length - 200;
+                if (body.Length > pageBudget && pageBudget > 2000)
+                {
+                    var cut = body.Length - pageBudget;
+                    var lineStart = body.IndexOf('\n', cut);
+                    body = "(older part of this page omitted for length)\n" + body[(lineStart >= 0 ? lineStart + 1 : cut)..];
+                }
+            }
+            block.AppendLine(body);
             block.AppendLine();
             if (used + block.Length > MaxContextChars)
             {
