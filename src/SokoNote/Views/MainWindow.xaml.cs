@@ -4,7 +4,10 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -21,6 +24,8 @@ namespace SokoNote.Views;
 public static class AppCommands
 {
     public static readonly RoutedUICommand NewEntry = new("New entry", nameof(NewEntry), typeof(AppCommands));
+    public static readonly RoutedUICommand NewInfoEntry = new("New reference entry", nameof(NewInfoEntry), typeof(AppCommands));
+    public static readonly RoutedUICommand ToggleEntryKind = new("Switch entry kind", nameof(ToggleEntryKind), typeof(AppCommands));
     public static readonly RoutedUICommand SaveEntry = new("Save", nameof(SaveEntry), typeof(AppCommands));
     public static readonly RoutedUICommand FocusSearch = new("Search", nameof(FocusSearch), typeof(AppCommands));
     public static readonly RoutedUICommand InsertLink = new("Link", nameof(InsertLink), typeof(AppCommands));
@@ -62,8 +67,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        EntryKindToggle.Loaded += (_, _) => SnapKindToggle(); // trigger EnterActions do not run for the initial state
         _vm = new MainViewModel(App.Repository);
         DataContext = _vm;
+        // 전체 view lists 참고 정보 (by title) before 업무 일지 (by date): group headers make the seam visible
+        CollectionViewSource.GetDefaultView(_vm.Entries).GroupDescriptions.Add(new PropertyGroupDescription(nameof(Entry.HasDate)));
 
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         _saveTimer.Tick += (_, _) =>
@@ -295,7 +303,7 @@ public partial class MainWindow : Window
                 if (doc.Blocks.Count == 0) doc.Blocks.Add(new Paragraph());
                 Editor.Document = doc;
                 EntryMetaPanel.Visibility = full.IsPage ? Visibility.Collapsed : Visibility.Visible;
-                EntryDatePanel.Visibility = full.HasDate ? Visibility.Visible : Visibility.Collapsed; // information notes have no date
+                ShowEntryKind(full.HasDate);
                 DeleteEntryButton.Visibility = full.IsPage ? Visibility.Collapsed : Visibility.Visible;
                 ApplyPaper(full.PaperColor, full.PaperStyle);
                 TopicCombo.SelectedValue = full.TopicId;
@@ -338,8 +346,7 @@ public partial class MainWindow : Window
 
     private void CurrentEntry_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(Entry.HasDate) && sender is Entry changed)
-            EntryDatePanel.Visibility = changed.HasDate ? Visibility.Visible : Visibility.Collapsed; // topic type switched
+        if (e.PropertyName == nameof(Entry.HasDate) && sender is Entry changed) ShowEntryKind(changed.HasDate);
         if (_loading) return;
         if (e.PropertyName is nameof(Entry.Title) or nameof(Entry.Status) or nameof(Entry.EntryDate) or nameof(Entry.TopicId))
             MarkDirty();
@@ -432,8 +439,6 @@ public partial class MainWindow : Window
         entry.TopicId = t.Id;
         entry.TopicName = t.Name;
         entry.TopicColor = t.Color;
-        entry.HasDate = !t.IsInfo;
-        EntryDatePanel.Visibility = entry.HasDate ? Visibility.Visible : Visibility.Collapsed;
         SaveNow();
         _vm.FollowEntry(entry);
     }
@@ -471,6 +476,11 @@ public partial class MainWindow : Window
             InsertTodayOnPage();
             return;
         }
+        CreateEntryInteractive(hasDate: true);
+    }
+
+    private void CreateEntryInteractive(bool hasDate)
+    {
         var topicId = _vm.SelectedTopicId ?? _vm.CurrentEntry?.TopicId ?? _vm.RealTopics.FirstOrDefault()?.Id;
         if (topicId is null)
         {
@@ -478,7 +488,133 @@ public partial class MainWindow : Window
             else return;
         }
         if (_vm.IsReadAllMode) _vm.IsReadAllMode = false;
-        _vm.CreateEntry(topicId.Value);
+        _vm.CreateEntry(topicId.Value, hasDate);
+    }
+
+    // [+ 새 일지 ▾] asks which kind: 업무 일지 (dated) or 참고 정보 (no date)
+    private void NewEntryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = NewEntryButton.ContextMenu!;
+        menu.PlacementTarget = NewEntryButton;
+        menu.Placement = PlacementMode.Bottom;
+        menu.VerticalOffset = -2; // the menu template carries an 8px shadow margin
+        menu.IsOpen = true;
+    }
+
+    // right-align the menu under the button (it is wider than the button, which sits at the panel's right edge)
+    private void NewEntryMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        if (sender is ContextMenu menu) menu.HorizontalOffset = NewEntryButton.ActualWidth - menu.ActualWidth + 8;
+    }
+
+    private void NewDatedEntry_Click(object sender, RoutedEventArgs e) => CreateEntryInteractive(hasDate: true);
+    private void NewInfoEntry_Click(object sender, RoutedEventArgs e) => CreateEntryInteractive(hasDate: false);
+
+    private void NewInfoEntry_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_vm.IsPageMode) return;
+        CreateEntryInteractive(hasDate: false);
+    }
+
+    /// <summary>The 업무 일지 ⇄ 참고 정보 toggle in the editor header switches the open entry's kind.</summary>
+    private void EntryKindToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.CurrentEntry is not { IsPage: false } entry)
+        {
+            EntryKindToggle.IsChecked = !(EntryKindToggle.IsChecked == true); // nothing open: undo the visual flip
+            return;
+        }
+        SwitchEntryKind(entry, hasDate: EntryKindToggle.IsChecked != true);
+    }
+
+    // Ctrl+Shift+K: the same switch from the keyboard
+    private void ToggleEntryKind_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_vm.CurrentEntry is not { IsPage: false } entry) return;
+        SwitchEntryKind(entry, !entry.HasDate);
+    }
+
+    private void SwitchEntryKind(Entry entry, bool hasDate)
+    {
+        SaveNow();
+        var wasByDate = _vm.IsByDateView;
+        _vm.SetEntryHasDate(entry, hasDate);
+        ShowEntryKind(entry.HasDate, animate: true);
+        // the list quietly moved from 날짜별 to 전체 so the entry stays in sight: say so
+        if (wasByDate && _vm.IsAllView) ShowStatusHint(Loc.T("S.InfoShownInAll"));
+        if (UIElementAutomationPeer.FromElement(EntryKindToggle) is { } peer) peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+    }
+
+    /// <summary>Reflects an entry's kind in the header. Loading another entry snaps; a user switch slides.</summary>
+    private void ShowEntryKind(bool hasDate, bool animate = false)
+    {
+        EntryKindToggle.IsChecked = !hasDate;
+        if (!animate || !SystemParameters.ClientAreaAnimation) SnapKindToggle();
+        EntryKindToggle.ToolTip = Loc.T(hasDate ? "S.EntryKindHintToInfo" : "S.EntryKindHintToDated");
+        AutomationProperties.SetHelpText(EntryKindToggle, Loc.T(hasDate ? "S.EntryKindDated" : "S.EntryKindInfo") + " · Ctrl+Shift+K");
+        EntryDatePanel.Visibility = hasDate ? Visibility.Visible : Visibility.Collapsed;
+        NoDateText.Visibility = hasDate ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private DispatcherTimer? _hintTimer;
+
+    /// <summary>A short note in the status bar that fades out by itself.</summary>
+    private void ShowStatusHint(string text)
+    {
+        StatusHint.Text = text;
+        StatusHint.Visibility = Visibility.Visible;
+        _hintTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(4), DispatcherPriority.Normal, (_, _) =>
+        {
+            _hintTimer!.Stop();
+            StatusHint.Visibility = Visibility.Collapsed;
+        }, Dispatcher);
+        _hintTimer.Stop();
+        _hintTimer.Start();
+    }
+
+    // "전체 보기" link under the by-date list
+    private void ShowAllView_Click(object sender, RoutedEventArgs e) => _vm.IsAllView = true;
+
+    /// <summary>Puts the toggle's knob and track colours at their resting values without animating (selection changes should not slide).</summary>
+    private void SnapKindToggle()
+    {
+        if (EntryKindToggle.Template is not { } t || !EntryKindToggle.IsLoaded) return;
+        var info = EntryKindToggle.IsChecked == true;
+        if (t.FindName("knobMove", EntryKindToggle) is TranslateTransform move)
+        {
+            move.BeginAnimation(TranslateTransform.XProperty, null);
+            move.X = info ? 89 : 0;
+        }
+        if (t.FindName("trackFill", EntryKindToggle) is SolidColorBrush fill)
+        {
+            fill.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            fill.Color = (Color)FindResource(info ? "KindInfoTrackColor" : "KindDatedTrackColor");
+        }
+        if (t.FindName("trackLine", EntryKindToggle) is SolidColorBrush line)
+        {
+            line.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            line.Color = (Color)FindResource(info ? "KindInfoLineColor" : "KindDatedLineColor");
+        }
+        if (t.FindName("knobLine", EntryKindToggle) is SolidColorBrush knobLine)
+        {
+            knobLine.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            knobLine.Color = (Color)FindResource(info ? "KindInfoLineColor" : "KindDatedLineColor");
+        }
+        foreach (var (name, key) in new[]
+        {
+            ("datedInk", info ? "KindIdleInkColor" : "KindDatedInkColor"), ("datedIconInk", info ? "KindIdleInkColor" : "KindDatedInkColor"),
+            ("infoInk", info ? "KindInfoInkColor" : "KindIdleInkColor"), ("infoIconInk", info ? "KindInfoInkColor" : "KindIdleInkColor"),
+        })
+        {
+            if (t.FindName(name, EntryKindToggle) is not SolidColorBrush b) continue;
+            b.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            b.Color = (Color)FindResource(key);
+        }
+        if (t.FindName("infoIcon", EntryKindToggle) is TextBlock pin)
+        {
+            pin.BeginAnimation(TextBlock.TextProperty, null);
+            pin.Text = info ? "\uE840" : "\uE718";
+        }
     }
 
     private void SaveEntry_Executed(object sender, ExecutedRoutedEventArgs e)
@@ -567,7 +703,7 @@ public partial class MainWindow : Window
     {
         var dlg = new TopicDialog(this, null, null, name => _vm.Repo.TopicNameExists(name));
         if (dlg.ShowDialog() != true) return null;
-        return _vm.AddTopic(dlg.TopicName, dlg.Color, dlg.IsInfo);
+        return _vm.AddTopic(dlg.TopicName, dlg.Color);
     }
 
     private static Topic? TopicFromMenu(object sender) => (sender as FrameworkElement)?.DataContext as Topic;
@@ -579,10 +715,8 @@ public partial class MainWindow : Window
 
     private void EditTopic(Topic t)
     {
-        var dlg = new TopicDialog(this, t.Name, t.Color, name => _vm.Repo.TopicNameExists(name, t.Id), t.IsInfo);
+        var dlg = new TopicDialog(this, t.Name, t.Color, name => _vm.Repo.TopicNameExists(name, t.Id));
         if (dlg.ShowDialog() != true) return;
-        SaveNow();
-        _vm.SetTopicKind(t, dlg.IsInfo);
         if (dlg.TopicName != t.Name) _vm.RenameTopic(t, dlg.TopicName);
         if (!string.Equals(dlg.Color, t.Color, StringComparison.OrdinalIgnoreCase)) _vm.SetTopicColor(t, dlg.Color);
     }
@@ -595,17 +729,6 @@ public partial class MainWindow : Window
     private void TopicColor_Click(object sender, RoutedEventArgs e)
     {
         if (TopicFromMenu(sender) is { IsAll: false } t) EditTopic(t);
-    }
-
-    // right-click → 유형: switch between dated journal and information list without opening the dialog
-    private void TopicKindJournal_Click(object sender, RoutedEventArgs e) => SwitchTopicKind(sender, isInfo: false);
-    private void TopicKindInfo_Click(object sender, RoutedEventArgs e) => SwitchTopicKind(sender, isInfo: true);
-
-    private void SwitchTopicKind(object sender, bool isInfo)
-    {
-        if (TopicFromMenu(sender) is not { IsAll: false } t) return;
-        SaveNow();
-        _vm.SetTopicKind(t, isInfo);
     }
 
     private void TopicUp_Click(object sender, RoutedEventArgs e)

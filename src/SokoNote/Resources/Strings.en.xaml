@@ -2,7 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
-    <sys:String x:Key="S.AppName">SokoNote</sys:String>
+    <sys:String x:Key="S.AppName">Soko Work Diary</sys:String>
     <sys:String x:Key="S.AllTopics">All topics</sys:String>
     <sys:String x:Key="S.Untitled">(Untitled)</sys:String>
     <sys:String x:Key="S.EmptyList">Nothing to show.</sys:String>
@@ -56,11 +56,17 @@
     <sys:String x:Key="S.TopicDialogEdit">Edit topic</sys:String>
     <sys:String x:Key="S.TopicName">Topic name</sys:String>
     <sys:String x:Key="S.TopicNamePlaceholder">e.g. Project A</sys:String>
-    <sys:String x:Key="S.TopicKind">Type</sys:String>
-    <sys:String x:Key="S.TopicKindJournal">Dated journal</sys:String>
-    <sys:String x:Key="S.TopicKindInfo">Information (no dates)</sys:String>
-    <sys:String x:Key="S.TopicKindHint">Information: a topic that just collects notes without dates (server info, contacts…). Listed by title; can be switched any time.</sys:String>
-    <sys:String x:Key="S.InfoListTitle">{0} — information</sys:String>
+    <sys:String x:Key="S.EntryKind">Kind</sys:String>
+    <sys:String x:Key="S.EntryKindDated">Journal</sys:String>
+    <sys:String x:Key="S.EntryKindInfo">Reference</sys:String>
+    <sys:String x:Key="S.EntryKindDatedDesc">Carries a date · shown in the by-date view</sys:String>
+    <sys:String x:Key="S.EntryKindInfoDesc">Kept without a date · server info, contacts, procedures</sys:String>
+    <sys:String x:Key="S.EntryKindHint">Switch entry kind</sys:String>
+    <sys:String x:Key="S.EntryKindHintToInfo">Switch to reference · kept without a date (Ctrl+Shift+K)</sys:String>
+    <sys:String x:Key="S.EntryKindHintToDated">Switch to journal · shown in the by-date view (Ctrl+Shift+K)</sys:String>
+    <sys:String x:Key="S.NoDate">Kept without a date</sys:String>
+    <sys:String x:Key="S.HiddenInfo">{0} reference entries are in the All view ·</sys:String>
+    <sys:String x:Key="S.InfoShownInAll">Reference entries are shown in the 'All' view</sys:String>
     <sys:String x:Key="S.InfoGroup">Information (no date)</sys:String>
     <sys:String x:Key="S.TopicColor">Color</sys:String>
     <sys:String x:Key="S.TopicNameDuplicate">A topic named "{0}" already exists. Choose another name.</sys:String>
@@ -118,7 +124,7 @@
     <sys:String x:Key="S.ReadAllTruncated">Showing the latest {0} of {1} entries. Narrow it down by date, topic or search.</sys:String>
     <sys:String x:Key="S.ClaudeWeb.Open">Ask on the web (no API needed)</sys:String>
     <sys:String x:Key="S.ClaudeWeb.OpenHint">Opens claude.ai in a browser inside the app so you can ask about your journal with your own Claude account. No API key or Claude Code needed.</sys:String>
-    <sys:String x:Key="S.ClaudeWeb.Title">Claude on the web — SokoNote</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Title">Claude web — Soko Work Diary</sys:String>
     <sys:String x:Key="S.ClaudeWeb.QuestionPlaceholder">What do you want to ask about your work? (e.g. summarize this month)</sys:String>
     <sys:String x:Key="S.ClaudeWeb.Send">Insert with my work</sys:String>
     <sys:String x:Key="S.ClaudeWeb.Insert">Selection → entry</sys:String>
@@ -247,7 +253,7 @@
     <sys:String x:Key="S.Settings.BackupInfo">Automatic backup on the first start each day (keeps the last {0})</sys:String>
     <sys:String x:Key="S.Settings.OpenFolder">Open folder</sys:String>
     <sys:String x:Key="S.Settings.About">About</sys:String>
-    <sys:String x:Key="S.Settings.AboutText">SokoNote {0} · work journal by topic and date + Claude assistant</sys:String>
+    <sys:String x:Key="S.Settings.AboutText">Soko Work Diary {0} · work journal by topic and date + Claude assistant</sys:String>
     <sys:String x:Key="S.Settings.Shortcuts">Shortcuts</sys:String>
-    <sys:String x:Key="S.Settings.ShortcutsText">Ctrl+N new entry · Ctrl+S save · Ctrl+F search · Ctrl+K link · Ctrl+B/I/U formatting · Ctrl+←/→ change day · Ctrl+T today · Ctrl+Shift+C Claude · Ctrl+, settings</sys:String>
+    <sys:String x:Key="S.Settings.ShortcutsText">Ctrl+N new entry · Ctrl+Shift+I new reference note · Ctrl+Shift+K switch entry kind · Ctrl+S save · Ctrl+F search · Ctrl+K link · Ctrl+B/I/U formatting · Ctrl+←/→ change day · Ctrl+T today · Ctrl+Shift+C Claude · Ctrl+, settings</sys:String>
 </ResourceDictionary>

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-SokoNote (소코 업무정리) is a Windows WPF (.NET 8) work-journal app. Topics are listed on the left, entries for the selected topic/date sit in the middle, and a Word-like rich-text editor on the right (bold, font, colors, paper color/style, hyperlinks). Data lives in SQLite. A side panel lets the user ask Claude about their journal through the locally installed Claude Code CLI.
+SokoNote, branded "Soko Work Diary" (formerly 소코 업무정리), is a Windows WPF (.NET 8) work-journal app. Topics are listed on the left, entries for the selected topic/date sit in the middle, and a Word-like rich-text editor on the right (bold, font, colors, paper color/style, hyperlinks). Data lives in SQLite. A side panel lets the user ask Claude about their journal through the locally installed Claude Code CLI.
 
 The user communicates in Korean, and the UI is bilingual (ko/en).
 

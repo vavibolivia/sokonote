@@ -13,6 +13,8 @@
 
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static views:AppCommands.NewEntry}" Executed="NewEntry_Executed"/>
+        <CommandBinding Command="{x:Static views:AppCommands.NewInfoEntry}" Executed="NewInfoEntry_Executed"/>
+        <CommandBinding Command="{x:Static views:AppCommands.ToggleEntryKind}" Executed="ToggleEntryKind_Executed"/>
         <CommandBinding Command="{x:Static views:AppCommands.InsertToday}" Executed="InsertToday_Executed"/>
         <CommandBinding Command="{x:Static views:AppCommands.SaveEntry}" Executed="SaveEntry_Executed"/>
         <CommandBinding Command="{x:Static views:AppCommands.FocusSearch}" Executed="FocusSearch_Executed"/>
@@ -37,6 +39,8 @@
         <KeyBinding Gesture="Ctrl+Shift+C" Command="{x:Static views:AppCommands.ToggleClaude}"/>
         <KeyBinding Gesture="Ctrl+OemComma" Command="{x:Static views:AppCommands.OpenSettings}"/>
         <KeyBinding Gesture="Ctrl+Shift+N" Command="{x:Static views:AppCommands.AddTopic}"/>
+        <KeyBinding Gesture="Ctrl+Shift+I" Command="{x:Static views:AppCommands.NewInfoEntry}"/>
+        <KeyBinding Gesture="Ctrl+Shift+K" Command="{x:Static views:AppCommands.ToggleEntryKind}"/>
     </Window.InputBindings>
 
     <Window.Resources>
@@ -45,12 +49,6 @@
         <ContextMenu x:Key="TopicMenu">
             <MenuItem Header="{DynamicResource S.Rename}" Click="TopicRename_Click"/>
             <MenuItem Header="{DynamicResource S.ChangeColor}" Click="TopicColor_Click"/>
-            <MenuItem Header="{DynamicResource S.TopicKind}">
-                <MenuItem Header="{DynamicResource S.TopicKindJournal}" Click="TopicKindJournal_Click"
-                          IsChecked="{Binding IsInfo, Converter={StaticResource InverseBool}, Mode=OneWay}"/>
-                <MenuItem Header="{DynamicResource S.TopicKindInfo}" Click="TopicKindInfo_Click"
-                          IsChecked="{Binding IsInfo, Mode=OneWay}"/>
-            </MenuItem>
             <Separator/>
             <MenuItem Header="{DynamicResource S.MoveUp}" Click="TopicUp_Click"/>
             <MenuItem Header="{DynamicResource S.MoveDown}" Click="TopicDown_Click"/>
@@ -68,8 +66,6 @@
         <DataTemplate x:Key="TopicTemplate" DataType="{x:Type models:Topic}">
             <DockPanel>
                 <Ellipse Width="9" Height="9" Fill="{Binding Color, Converter={StaticResource HexToBrush}}" Margin="0,0,9,0" VerticalAlignment="Center"/>
-                <TextBlock DockPanel.Dock="Right" Text="&#xE8A5;" Style="{StaticResource Icon}" FontSize="11" Foreground="{StaticResource SidebarMuted}" Margin="0,0,6,0"
-                           VerticalAlignment="Center" ToolTip="{DynamicResource S.TopicKindInfo}" Visibility="{Binding IsInfo, Converter={StaticResource BoolToVis}}"/>
                 <Border DockPanel.Dock="Right" Background="#2A3148" CornerRadius="9" Padding="7,1" MinWidth="22" VerticalAlignment="Center">
                     <TextBlock Text="{Binding EntryCount}" FontSize="11" Foreground="{StaticResource SidebarMuted}" HorizontalAlignment="Center"/>
                 </Border>
@@ -97,6 +93,14 @@
                     <Border DockPanel.Dock="Right" Visibility="{Binding HasDate, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding EntryDate, Converter={StaticResource ShortDate}}" Style="{StaticResource Caption}" Margin="0,0,8,0" VerticalAlignment="Center"
                                    Visibility="{Binding DataContext.IsDateMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisInv}}"/>
+                    </Border>
+                    <Border DockPanel.Dock="Right" Background="{StaticResource KindInfoTrack}" BorderBrush="{StaticResource KindInfoLine}" BorderThickness="1" CornerRadius="4"
+                            Padding="5,0" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="{DynamicResource S.EntryKindInfoDesc}"
+                            Visibility="{Binding HasDate, Converter={StaticResource BoolToVisInv}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE840;" Style="{StaticResource Icon}" FontSize="10" Foreground="{StaticResource KindInfoInk}" Margin="0,0,3,0" UseLayoutRounding="True"/>
+                            <TextBlock Text="{DynamicResource S.EntryKindInfo}" FontSize="10.5" Foreground="{StaticResource KindInfoInk}" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Border>
                     <TextBlock Text="{Binding TopicName}" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                 </DockPanel>
@@ -173,8 +177,8 @@
         <Border Grid.Column="0" Background="{StaticResource SidebarBg}">
             <DockPanel Margin="12,14,12,12">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,0,0,14">
-                    <Image Source="pack://application:,,,/SokoNote;component/Assets/app.png" Width="26" Height="26" Margin="0,0,9,0"/>
-                    <TextBlock Text="{DynamicResource S.AppName}" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                    <Image Source="pack://application:,,,/SokoNote;component/Assets/app.png" Width="28" Height="28" Margin="0,0,9,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock Text="{DynamicResource S.AppName}" FontSize="15.5" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" FontFamily="Segoe UI, Malgun Gothic"/>
                 </StackPanel>
 
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
@@ -272,11 +276,41 @@
                     </DockPanel>
 
                     <DockPanel Margin="0,10,0,0" Visibility="{Binding IsPageMode, Converter={StaticResource BoolToVisInv}}">
-                        <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Command="{x:Static views:AppCommands.NewEntry}" Height="28" Padding="10,0">
+                        <Button x:Name="NewEntryButton" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Click="NewEntryButton_Click" Height="28" Padding="10,0"
+                                AutomationProperties.Name="{DynamicResource S.NewEntry}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE710;" Style="{StaticResource Icon}" FontSize="11" Margin="0,0,6,0"/>
                                 <TextBlock Text="{DynamicResource S.NewEntry}" VerticalAlignment="Center"/>
+                                <TextBlock Text="&#xE96E;" Style="{StaticResource Icon}" FontSize="10" Margin="6,0,0,0"/>
                             </StackPanel>
+                            <Button.ContextMenu>
+                                <ContextMenu MinWidth="330" MaxWidth="400" Opened="NewEntryMenu_Opened">
+                                    <MenuItem Click="NewDatedEntry_Click" InputGestureText="Ctrl+N" Padding="8,7" Background="{StaticResource KindDatedTrack}"
+                                              AutomationProperties.Name="{DynamicResource S.EntryKindDated}" AutomationProperties.HelpText="{DynamicResource S.EntryKindDatedDesc}">
+                                        <MenuItem.Icon>
+                                            <TextBlock Text="&#xE787;" Style="{StaticResource Icon}" FontSize="15" Foreground="{StaticResource KindDatedInk}"/>
+                                        </MenuItem.Icon>
+                                        <MenuItem.Header>
+                                            <StackPanel>
+                                                <TextBlock Text="{DynamicResource S.EntryKindDated}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{DynamicResource S.EntryKindDatedDesc}" Style="{StaticResource Caption}" Foreground="{StaticResource KindIdleInk}" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                            </StackPanel>
+                                        </MenuItem.Header>
+                                    </MenuItem>
+                                    <MenuItem Click="NewInfoEntry_Click" InputGestureText="Ctrl+Shift+I" Padding="8,7" Background="{StaticResource KindInfoTrack}"
+                                              AutomationProperties.Name="{DynamicResource S.EntryKindInfo}" AutomationProperties.HelpText="{DynamicResource S.EntryKindInfoDesc}">
+                                        <MenuItem.Icon>
+                                            <TextBlock Text="&#xE718;" Style="{StaticResource Icon}" FontSize="15" Foreground="{StaticResource KindInfoInk}"/>
+                                        </MenuItem.Icon>
+                                        <MenuItem.Header>
+                                            <StackPanel>
+                                                <TextBlock Text="{DynamicResource S.EntryKindInfo}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{DynamicResource S.EntryKindInfoDesc}" Style="{StaticResource Caption}" Foreground="{StaticResource KindIdleInk}" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                            </StackPanel>
+                                        </MenuItem.Header>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
                         </Button>
                         <ComboBox x:Name="StatusFilter" SelectedIndex="{Binding StatusFilterIndex}" Margin="0,0,8,0"/>
                     </DockPanel>
@@ -314,9 +348,42 @@
                 </ListBox>
 
                 <Grid Visibility="{Binding IsPageMode, Converter={StaticResource BoolToVisInv}}">
-                    <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}" ItemTemplate="{StaticResource EntryTemplate}"
-                             ItemContainerStyle="{StaticResource EntryItemStyle}" Background="Transparent" BorderThickness="0" Padding="14,0,14,8"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.ScrollUnit="Pixel" KeyDown="EntryList_KeyDown"/>
+                    <DockPanel>
+                        <!-- by-date view: 참고 정보 are not on any date; say where they are -->
+                        <Border DockPanel.Dock="Bottom" Margin="14,0,14,10" Padding="10,6" CornerRadius="6" Background="{StaticResource KindInfoTrack}" BorderBrush="{StaticResource KindInfoLine}" BorderThickness="1"
+                                Visibility="{Binding HiddenInfoCount, Converter={StaticResource ZeroToVisInv}}">
+                            <TextBlock Style="{StaticResource Caption}" Foreground="{StaticResource KindInfoInk}" TextWrapping="Wrap">
+                                <Run Text="&#xE840;" FontFamily="{StaticResource IconFont}" FontSize="10.5"/>
+                                <Run Text="{Binding HiddenInfoText, Mode=OneWay}"/>
+                                <Hyperlink Click="ShowAllView_Click" Foreground="{StaticResource KindInfoInk}" TextDecorations="Underline"><Run Text="{DynamicResource S.All}"/></Hyperlink>
+                            </TextBlock>
+                        </Border>
+                        <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}" ItemTemplate="{StaticResource EntryTemplate}"
+                                 ItemContainerStyle="{StaticResource EntryItemStyle}" Background="Transparent" BorderThickness="0" Padding="14,0,14,8"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.IsVirtualizingWhenGrouping="True" KeyDown="EntryList_KeyDown">
+                            <ListBox.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <!-- shown only when 참고 정보 and 업무 일지 are both listed (the sort order changes between them) -->
+                                            <StackPanel Orientation="Horizontal" Margin="2,6,0,6"
+                                                        Visibility="{Binding DataContext.ShowKindGroups, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock x:Name="icon" Text="&#xE787;" Style="{StaticResource Icon}" FontSize="11" Foreground="{StaticResource InkMuted}" Margin="0,0,6,0"/>
+                                                <TextBlock x:Name="label" Text="{DynamicResource S.EntryKindDated}" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding ItemCount}" Style="{StaticResource Caption}" Margin="6,0,0,0"/>
+                                            </StackPanel>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding Name}" Value="False">
+                                                    <Setter TargetName="icon" Property="Text" Value="&#xE840;"/>
+                                                    <Setter TargetName="label" Property="Text" Value="{DynamicResource S.EntryKindInfo}"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ListBox.GroupStyle>
+                        </ListBox>
+                    </DockPanel>
                     <StackPanel VerticalAlignment="Center" Margin="20,0,20,80" Visibility="{Binding Entries.Count, Converter={StaticResource ZeroToVis}}">
                         <TextBlock Text="&#xE70B;" Style="{StaticResource Icon}" FontSize="30" Foreground="{StaticResource InkFaint}" Margin="0,0,0,10"/>
                         <TextBlock Text="{DynamicResource S.NoEntriesForDay}" Foreground="{StaticResource InkMuted}" TextAlignment="Center" TextWrapping="Wrap"/>
@@ -382,39 +449,263 @@
                             <TextBox x:Name="TitleBox" Style="{StaticResource TitleBox}" Tag="{DynamicResource S.TitlePlaceholder}" MaxLength="200"
                                      Text="{Binding CurrentEntry.Title, UpdateSourceTrigger=PropertyChanged}" KeyDown="TitleBox_KeyDown"/>
                         </DockPanel>
-                        <WrapPanel x:Name="EntryMetaPanel" Margin="2,6,0,0">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,14,4">
-                                <TextBlock Text="{DynamicResource S.Topic}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox x:Name="TopicCombo" ItemsSource="{Binding RealTopics}" SelectedValuePath="Id" MinWidth="140" SelectionChanged="TopicCombo_SelectionChanged">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Ellipse Width="8" Height="8" Fill="{Binding Color, Converter={StaticResource HexToBrush}}" Margin="0,0,6,0"/>
-                                                <TextBlock Text="{Binding Name}"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel x:Name="EntryDatePanel" Orientation="Horizontal" Margin="0,0,14,4">
-                                <TextBlock Text="{DynamicResource S.Date}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <DatePicker x:Name="EntryDatePicker" Width="150" SelectedDateChanged="EntryDatePicker_SelectedDateChanged" CalendarStyle="{x:Null}"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,14,4">
-                                <TextBlock Text="{DynamicResource S.Status}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox x:Name="StatusCombo" MinWidth="110" SelectionChanged="StatusCombo_SelectionChanged">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Ellipse Width="8" Height="8" Fill="{Binding Converter={StaticResource StatusBrush}}" Margin="0,0,6,0"/>
-                                                <TextBlock Text="{Binding Converter={StaticResource StatusText}}"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </StackPanel>
-                            <TextBlock x:Name="CreatedText" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,0,4"/>
-                        </WrapPanel>
+                        <StackPanel x:Name="EntryMetaPanel" Margin="2,8,0,0" Grid.IsSharedSizeScope="True">
+                            <!-- row 1: where it belongs -->
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetaLabel"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{DynamicResource S.Topic}" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                                    <ComboBox x:Name="TopicCombo" ItemsSource="{Binding RealTopics}" SelectedValuePath="Id" MinWidth="140" SelectionChanged="TopicCombo_SelectionChanged">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding Color, Converter={StaticResource HexToBrush}}" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="{Binding Name}"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Text="{DynamicResource S.Status}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="14,0,6,0"/>
+                                    <ComboBox x:Name="StatusCombo" MinWidth="110" SelectionChanged="StatusCombo_SelectionChanged">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding Converter={StaticResource StatusBrush}}" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="{Binding Converter={StaticResource StatusText}}"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                            <!-- row 2: kind and time; the row keeps its height in both kinds -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetaLabel"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="EntryKindCaption" Text="{DynamicResource S.EntryKind}" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                                    <!-- 업무 일지 ⇄ 참고 정보: a segmented pill whose knob slides behind the labels; inks follow the knob -->
+                                    <ToggleButton x:Name="EntryKindToggle" Click="EntryKindToggle_Click" Cursor="Hand" VerticalAlignment="Center" Focusable="False"
+                                                  AutomationProperties.Name="{DynamicResource S.EntryKindHint}" AutomationProperties.LabeledBy="{Binding ElementName=EntryKindCaption}"
+                                                  AutomationProperties.LiveSetting="Polite">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Grid Width="184" Height="26">
+                                                    <Border CornerRadius="9" BorderThickness="1">
+                                                        <Border.Background>
+                                                            <SolidColorBrush x:Name="trackFill" Color="{StaticResource KindDatedTrackColor}"/>
+                                                        </Border.Background>
+                                                        <Border.BorderBrush>
+                                                            <SolidColorBrush x:Name="trackLine" Color="{StaticResource KindDatedLineColor}"/>
+                                                        </Border.BorderBrush>
+                                                    </Border>
+                                                    <Border x:Name="knob" Width="89" Height="20" CornerRadius="7" Background="{StaticResource Surface}" BorderThickness="1"
+                                                            HorizontalAlignment="Left" Margin="3,0,0,0" RenderTransformOrigin="0.5,0.5">
+                                                        <Border.BorderBrush>
+                                                            <SolidColorBrush x:Name="knobLine" Color="{StaticResource KindDatedLineColor}"/>
+                                                        </Border.BorderBrush>
+                                                        <Border.Effect>
+                                                            <DropShadowEffect x:Name="knobShadow" BlurRadius="4" ShadowDepth="1" Opacity="0.14"/>
+                                                        </Border.Effect>
+                                                        <Border.RenderTransform>
+                                                            <TransformGroup>
+                                                                <ScaleTransform x:Name="knobScale"/>
+                                                                <TranslateTransform x:Name="knobMove"/>
+                                                            </TransformGroup>
+                                                        </Border.RenderTransform>
+                                                    </Border>
+                                                    <!-- press feedback under the cursor, wherever on the pill it lands -->
+                                                    <Border x:Name="pressVeil" CornerRadius="9" Background="{StaticResource Ink}" Opacity="0" IsHitTestVisible="False"/>
+                                                    <Grid Margin="3,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition/>
+                                                            <ColumnDefinition/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="datedIcon" Text="&#xE787;" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,5,0" RenderTransformOrigin="0.5,0.5">
+                                                                <TextBlock.Foreground>
+                                                                    <SolidColorBrush x:Name="datedIconInk" Color="{StaticResource KindDatedInkColor}"/>
+                                                                </TextBlock.Foreground>
+                                                                <TextBlock.RenderTransform>
+                                                                    <RotateTransform x:Name="datedWiggle"/>
+                                                                </TextBlock.RenderTransform>
+                                                            </TextBlock>
+                                                            <TextBlock x:Name="datedLabel" Text="{DynamicResource S.EntryKindDated}" FontFamily="{StaticResource UiFont}" FontSize="13"
+                                                                       FontWeight="SemiBold" VerticalAlignment="Center">
+                                                                <TextBlock.Foreground>
+                                                                    <SolidColorBrush x:Name="datedInk" Color="{StaticResource KindDatedInkColor}"/>
+                                                                </TextBlock.Foreground>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="infoIcon" Text="&#xE718;" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,5,0" RenderTransformOrigin="0.5,0.5">
+                                                                <TextBlock.Foreground>
+                                                                    <SolidColorBrush x:Name="infoIconInk" Color="{StaticResource KindIdleInkColor}"/>
+                                                                </TextBlock.Foreground>
+                                                                <TextBlock.RenderTransform>
+                                                                    <RotateTransform x:Name="infoWiggle"/>
+                                                                </TextBlock.RenderTransform>
+                                                            </TextBlock>
+                                                            <TextBlock x:Name="infoLabel" Text="{DynamicResource S.EntryKindInfo}" FontFamily="{StaticResource UiFont}" FontSize="13"
+                                                                       FontWeight="SemiBold" VerticalAlignment="Center">
+                                                                <TextBlock.Foreground>
+                                                                    <SolidColorBrush x:Name="infoInk" Color="{StaticResource KindIdleInkColor}"/>
+                                                                </TextBlock.Foreground>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Trigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobMove" Storyboard.TargetProperty="X" To="89" Duration="0:0:0.28">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <BackEase EasingMode="EaseOut" Amplitude="0.25"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                    <ColorAnimation Storyboard.TargetName="trackFill" Storyboard.TargetProperty="Color" To="{StaticResource KindInfoTrackColor}" Duration="0:0:0.28"/>
+                                                                    <ColorAnimation Storyboard.TargetName="trackLine" Storyboard.TargetProperty="Color" To="{StaticResource KindInfoLineColor}" Duration="0:0:0.28"/>
+                                                                    <ColorAnimation Storyboard.TargetName="knobLine" Storyboard.TargetProperty="Color" To="{StaticResource KindInfoLineColor}" Duration="0:0:0.28"/>
+                                                                    <!-- the inks travel with the knob -->
+                                                                    <ColorAnimation Storyboard.TargetName="datedInk" Storyboard.TargetProperty="Color" To="{StaticResource KindIdleInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <ColorAnimation Storyboard.TargetName="datedIconInk" Storyboard.TargetProperty="Color" To="{StaticResource KindIdleInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <ColorAnimation Storyboard.TargetName="infoInk" Storyboard.TargetProperty="Color" To="{StaticResource KindInfoInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <ColorAnimation Storyboard.TargetName="infoIconInk" Storyboard.TargetProperty="Color" To="{StaticResource KindInfoInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <!-- the pin goes in as the knob arrives -->
+                                                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="infoIcon" Storyboard.TargetProperty="Text">
+                                                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.14" Value="&#xE840;"/>
+                                                                    </ObjectAnimationUsingKeyFrames>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobMove" Storyboard.TargetProperty="X" To="0" Duration="0:0:0.28">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <BackEase EasingMode="EaseOut" Amplitude="0.25"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                    <ColorAnimation Storyboard.TargetName="trackFill" Storyboard.TargetProperty="Color" To="{StaticResource KindDatedTrackColor}" Duration="0:0:0.28"/>
+                                                                    <ColorAnimation Storyboard.TargetName="trackLine" Storyboard.TargetProperty="Color" To="{StaticResource KindDatedLineColor}" Duration="0:0:0.28"/>
+                                                                    <ColorAnimation Storyboard.TargetName="knobLine" Storyboard.TargetProperty="Color" To="{StaticResource KindDatedLineColor}" Duration="0:0:0.28"/>
+                                                                    <ColorAnimation Storyboard.TargetName="datedInk" Storyboard.TargetProperty="Color" To="{StaticResource KindDatedInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <ColorAnimation Storyboard.TargetName="datedIconInk" Storyboard.TargetProperty="Color" To="{StaticResource KindDatedInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <ColorAnimation Storyboard.TargetName="infoInk" Storyboard.TargetProperty="Color" To="{StaticResource KindIdleInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <ColorAnimation Storyboard.TargetName="infoIconInk" Storyboard.TargetProperty="Color" To="{StaticResource KindIdleInkColor}" BeginTime="0:0:0.06" Duration="0:0:0.22"/>
+                                                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="infoIcon" Storyboard.TargetProperty="Text">
+                                                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.14" Value="&#xE718;"/>
+                                                                    </ObjectAnimationUsingKeyFrames>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                    </Trigger>
+                                                    <!-- hover: the knob lifts (animated, not swapped) -->
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Trigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobShadow" Storyboard.TargetProperty="BlurRadius" To="7" Duration="0:0:0.15"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobShadow" Storyboard.TargetProperty="ShadowDepth" To="1.5" Duration="0:0:0.15"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobShadow" Storyboard.TargetProperty="Opacity" To="0.24" Duration="0:0:0.15"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobShadow" Storyboard.TargetProperty="BlurRadius" To="4" Duration="0:0:0.2"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobShadow" Storyboard.TargetProperty="ShadowDepth" To="1" Duration="0:0:0.2"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobShadow" Storyboard.TargetProperty="Opacity" To="0.14" Duration="0:0:0.2"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                    </Trigger>
+                                                    <!-- …and the active icon nods once the knob has settled -->
+                                                    <MultiTrigger>
+                                                        <MultiTrigger.Conditions>
+                                                            <Condition Property="IsMouseOver" Value="True"/>
+                                                            <Condition Property="IsChecked" Value="False"/>
+                                                        </MultiTrigger.Conditions>
+                                                        <MultiTrigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard BeginTime="0:0:0.26">
+                                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="datedWiggle" Storyboard.TargetProperty="Angle" Duration="0:0:0.3">
+                                                                        <EasingDoubleKeyFrame KeyTime="0:0:0.08" Value="-10"><EasingDoubleKeyFrame.EasingFunction><SineEase EasingMode="EaseInOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+                                                                        <EasingDoubleKeyFrame KeyTime="0:0:0.18" Value="8"><EasingDoubleKeyFrame.EasingFunction><SineEase EasingMode="EaseInOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+                                                                        <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0"><EasingDoubleKeyFrame.EasingFunction><SineEase EasingMode="EaseInOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+                                                                    </DoubleAnimationUsingKeyFrames>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </MultiTrigger.EnterActions>
+                                                    </MultiTrigger>
+                                                    <MultiTrigger>
+                                                        <MultiTrigger.Conditions>
+                                                            <Condition Property="IsMouseOver" Value="True"/>
+                                                            <Condition Property="IsChecked" Value="True"/>
+                                                        </MultiTrigger.Conditions>
+                                                        <MultiTrigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard BeginTime="0:0:0.26">
+                                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="infoWiggle" Storyboard.TargetProperty="Angle" Duration="0:0:0.3">
+                                                                        <EasingDoubleKeyFrame KeyTime="0:0:0.08" Value="-10"><EasingDoubleKeyFrame.EasingFunction><SineEase EasingMode="EaseInOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+                                                                        <EasingDoubleKeyFrame KeyTime="0:0:0.18" Value="8"><EasingDoubleKeyFrame.EasingFunction><SineEase EasingMode="EaseInOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+                                                                        <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0"><EasingDoubleKeyFrame.EasingFunction><SineEase EasingMode="EaseInOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+                                                                    </DoubleAnimationUsingKeyFrames>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </MultiTrigger.EnterActions>
+                                                    </MultiTrigger>
+                                                    <!-- press: a quick squish + veil, then a plain return (the slide owns the bounce) -->
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Trigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobScale" Storyboard.TargetProperty="ScaleX" To="0.96" Duration="0:0:0.06"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobScale" Storyboard.TargetProperty="ScaleY" To="0.92" Duration="0:0:0.06"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="pressVeil" Storyboard.TargetProperty="Opacity" To="0.06" Duration="0:0:0.06"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.15">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <CubicEase EasingMode="EaseOut"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                    <DoubleAnimation Storyboard.TargetName="knobScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.15">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <CubicEase EasingMode="EaseOut"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                    <DoubleAnimation Storyboard.TargetName="pressVeil" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.15"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
+                                    </ToggleButton>
+                                    <StackPanel x:Name="EntryDatePanel" Orientation="Horizontal" Margin="14,0,0,0">
+                                        <TextBlock Text="{DynamicResource S.Date}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <DatePicker x:Name="EntryDatePicker" Width="130" SelectedDateFormat="Short" SelectedDateChanged="EntryDatePicker_SelectedDateChanged" CalendarStyle="{x:Null}"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="NoDateText" Text="{DynamicResource S.NoDate}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="14,0,0,0" Visibility="Collapsed"/>
+                                </StackPanel>
+                                <TextBlock x:Name="CreatedText" Grid.Column="2" Style="{StaticResource Caption}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -530,6 +821,7 @@
                     <DockPanel>
                         <TextBlock x:Name="SaveStatus" DockPanel.Dock="Right" Style="{StaticResource Caption}"/>
                         <TextBlock x:Name="LinkHint" DockPanel.Dock="Right" Style="{StaticResource Caption}" Margin="0,0,16,0" Text="{DynamicResource S.LinkHint}" Visibility="Collapsed"/>
+                        <TextBlock x:Name="StatusHint" DockPanel.Dock="Right" Style="{StaticResource Caption}" Foreground="{StaticResource KindInfoInk}" Margin="0,0,16,0" Visibility="Collapsed"/>
                         <TextBlock x:Name="WordCount" Style="{StaticResource Caption}"/>
                     </DockPanel>
                 </Border>

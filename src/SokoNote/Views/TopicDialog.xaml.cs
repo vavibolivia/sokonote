@@ -13,15 +13,10 @@ public partial class TopicDialog : Window
     private readonly Func<string, bool>? _isDuplicate;
 
     /// <param name="isDuplicate">Returns true when another topic already has the given name.</param>
-    /// <summary>Information topic (notes without dates) rather than a dated journal.</summary>
-    public bool IsInfo => KindInfo.IsChecked == true;
-
-    public TopicDialog(Window owner, string? name, string? color, Func<string, bool>? isDuplicate = null, bool isInfo = false)
+    public TopicDialog(Window owner, string? name, string? color, Func<string, bool>? isDuplicate = null)
     {
         _isDuplicate = isDuplicate;
         InitializeComponent();
-        KindInfo.IsChecked = isInfo;
-        KindJournal.IsChecked = !isInfo;
         Owner = owner;
         Title = name is null ? Loc.T("S.TopicDialogNew") : Loc.T("S.TopicDialogEdit");
         NameBox.Text = name ?? "";

@@ -83,11 +83,8 @@ public partial class MainViewModel : ObservableObject
 
     public bool IsSearching => !string.IsNullOrWhiteSpace(SearchText);
 
-    /// <summary>The selected topic just lists information: no dates, no date navigation, sorted by title.</summary>
-    public bool SelectedTopicIsInfo => SelectedTopic is { IsAll: false, IsInfo: true };
-
     /// <summary>Whether the date navigation (◀ date ▶, calendar) applies to what is shown.</summary>
-    public bool CalendarHasDates => (IsDateMode || IsPageMode) && !(SelectedTopicIsInfo && !IsPageMode);
+    public bool CalendarHasDates => IsDateMode || IsPageMode;
     public long? SelectedTopicId => SelectedTopic is { IsAll: false } t ? t.Id : null;
     public string SelectedDateText => Loc.LongDate(SelectedDate);
 
@@ -119,6 +116,7 @@ public partial class MainViewModel : ObservableObject
     {
         var keep = selectId ?? SelectedTopic?.Id ?? 0;
         var topics = Repo.GetTopics();
+        foreach (var t in topics) t.ViewMode = Repo.GetSetting(TopicViewKey(t.Id));
         _suppressRefresh = true;
         try
         {
@@ -148,9 +146,9 @@ public partial class MainViewModel : ObservableObject
         if (Topics.Count > 0 && Topics[0].IsAll) Topics[0].EntryCount = fresh.Values.Sum(t => t.EntryCount);
     }
 
-    public Topic AddTopic(string name, string color, bool isInfo = false)
+    public Topic AddTopic(string name, string color)
     {
-        var t = Repo.AddTopic(name, color, isInfo);
+        var t = Repo.AddTopic(name, color);
         LoadTopics(t.Id);
         return t;
     }
@@ -169,20 +167,6 @@ public partial class MainViewModel : ObservableObject
     private void UpdateListCaptionIfListMode()
     {
         if (!IsPageMode) UpdateListCaption();
-    }
-
-    /// <summary>Switches a topic between dated journal and information list.</summary>
-    public void SetTopicKind(Topic t, bool isInfo)
-    {
-        if (t.IsInfo == isInfo) return;
-        Repo.SetTopicKind(t.Id, isInfo);
-        t.IsInfo = isInfo;
-        // entries already loaded (the list and the open one, which a refresh keeps) follow the new type right away
-        foreach (var e in Entries.Where(e => e.TopicId == t.Id)) e.HasDate = !isInfo;
-        if (CurrentEntry?.TopicId == t.Id) CurrentEntry.HasDate = !isInfo;
-        OnPropertyChanged(nameof(SelectedTopicIsInfo));
-        OnPropertyChanged(nameof(CalendarHasDates));
-        RefreshEntries(CurrentEntry?.Id);
     }
 
     public void SetTopicColor(Topic t, string color)
@@ -227,9 +211,47 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedTopicChanged(Topic? value)
     {
-        OnPropertyChanged(nameof(SelectedTopicIsInfo));
         OnPropertyChanged(nameof(CalendarHasDates));
-        if (!_suppressRefresh) RefreshEntries();
+        if (_suppressRefresh) return;
+        // each topic opens in the view it was last used in (날짜별 / 전체 / 한 장)
+        if (value is { IsAll: false, ViewMode: { } mode } && mode != ViewModeSetting) ApplyView(mode);
+        else RefreshEntries();
+    }
+
+    private static string TopicViewKey(long topicId) => $"ui.topicView.{topicId}";
+
+    /// <summary>Opens <paramref name="t"/> in <paramref name="mode"/> ("date", "all", "page") and remembers it for that topic.</summary>
+    public void SetTopicView(Topic t, string mode)
+    {
+        t.ViewMode = mode;
+        Repo.SetSetting(TopicViewKey(t.Id), mode);
+        if (SelectedTopic?.Id != t.Id) SelectedTopic = Topics.FirstOrDefault(x => x.Id == t.Id) ?? t; // applies the view
+        else ApplyView(mode);
+    }
+
+    private void ApplyView(string mode)
+    {
+        _suppressRefresh = true;
+        try
+        {
+            IsPageMode = mode == "page";
+            IsDateMode = mode != "all";
+        }
+        finally
+        {
+            _suppressRefresh = false;
+        }
+        RefreshEntries();
+    }
+
+    /// <summary>A view picked with the middle buttons becomes the selected topic's view.</summary>
+    private void RememberViewForSelectedTopic()
+    {
+        if (_suppressRefresh || SelectedTopic is not { IsAll: false } t) return;
+        var mode = ViewModeSetting;
+        if (t.ViewMode == mode) return;
+        t.ViewMode = mode;
+        Repo.SetSetting(TopicViewKey(t.Id), mode);
     }
 
     partial void OnIsDateModeChanged(bool value)
@@ -237,6 +259,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsByDateView));
         OnPropertyChanged(nameof(IsAllView));
         OnPropertyChanged(nameof(CalendarHasDates));
+        RememberViewForSelectedTopic();
         if (!_suppressRefresh) RefreshEntries();
     }
 
@@ -246,6 +269,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsAllView));
         OnPropertyChanged(nameof(CalendarHasDates));
         if (value) IsReadAllMode = false;
+        RememberViewForSelectedTopic();
         if (!_suppressRefresh) RefreshEntries();
     }
 
@@ -287,7 +311,6 @@ public partial class MainViewModel : ObservableObject
             q.Search = SearchText;
             q.IncludePages = true; // text written in one-page mode must be findable too
         }
-        else if (SelectedTopicIsInfo) q.TitleOrder = true; // an information topic has no dates: list everything by title
         else if (IsDateMode) q.Date = SelectedDate.Date;
         if (StatusFilterIndex > 0) q.Status = (EntryStatus)(StatusFilterIndex - 1);
         return q;
@@ -333,8 +356,17 @@ public partial class MainViewModel : ObservableObject
 
         UpdateListCaption();
         CalendarMarks.Set(Repo.GetEntryDates(SelectedTopicId));
+        ShowKindGroups = Entries.Any(e => e.HasDate) && Entries.Any(e => !e.HasDate);
+        HiddenInfoCount = IsByDateView && !IsSearching ? Repo.CountInfoEntries(SelectedTopicId) : 0;
         if (IsSearching) SearchResultsShown?.Invoke(this, SearchText.Trim());
     }
+
+    /// <summary>True when the list holds both kinds, so the headers that mark the change of sort order are shown.</summary>
+    [ObservableProperty] private bool _showKindGroups;
+
+    /// <summary>In 날짜별 view: how many 참고 정보 of the selected topic are not listed because they have no date.</summary>
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HiddenInfoText))] private int _hiddenInfoCount;
+    public string HiddenInfoText => Loc.F("S.HiddenInfo", HiddenInfoCount);
 
     /// <summary>Page mode: the editor shows the selected topic's single page; the middle list shows its days.</summary>
     private void ShowTopicPage()
@@ -410,14 +442,14 @@ public partial class MainViewModel : ObservableObject
         {
             ListTitle = Loc.T("S.AllEntries");
         }
-        if (!IsSearching && SelectedTopicIsInfo) ListTitle = Loc.F("S.InfoListTitle", SelectedTopic!.Name);
         var topic = SelectedTopic is { IsAll: false } t ? t.Name : Loc.T("S.AllTopics");
         ListSubtitle = IsListTruncated
             ? Loc.F("S.ListCountTruncated", topic, Entries.Count)
             : Loc.F("S.ListCount", topic, Entries.Count);
     }
 
-    public Entry? CreateEntry(long topicId)
+    /// <param name="hasDate">false creates a "simple information" entry without a date.</param>
+    public Entry? CreateEntry(long topicId, bool hasDate = true)
     {
         var topic = RealTopics.FirstOrDefault(t => t.Id == topicId);
         if (topic is null) return null;
@@ -432,6 +464,7 @@ public partial class MainViewModel : ObservableObject
             PaperStyle = Enum.TryParse<PaperStyle>(Repo.GetSetting("editor.paperStyle", "Plain"), out var ps) ? ps : PaperStyle.Plain,
             Content = null,
             PlainText = "",
+            HasDate = hasDate,
         };
         Repo.InsertEntry(e);
 
@@ -442,7 +475,8 @@ public partial class MainViewModel : ObservableObject
             SearchText = "";
             StatusFilterIndex = 0;
             if (SelectedTopic is { IsAll: false } st && st.Id != topic.Id) SelectedTopic = topic;
-            if (IsDateMode) SelectedDate = e.EntryDate;
+            if (!hasDate && IsDateMode) IsDateMode = false; // the by-date list has no place for it: show 전체
+            else if (IsDateMode) SelectedDate = e.EntryDate;
         }
         finally
         {
@@ -472,6 +506,26 @@ public partial class MainViewModel : ObservableObject
         item.HasDate = saved.HasDate;
         item.UpdatedAt = saved.UpdatedAt;
         item.PaperColor = saved.PaperColor;
+    }
+
+    /// <summary>
+    /// Switches an entry between dated record and simple information. A simple-information entry has no place in the
+    /// by-date list, so that view moves to 전체 to keep it in sight.
+    /// </summary>
+    public void SetEntryHasDate(Entry e, bool hasDate)
+    {
+        if (e.HasDate == hasDate) return;
+        e.HasDate = hasDate;
+        Repo.UpdateEntry(e);
+        if (!hasDate && IsDateMode && !IsPageMode)
+        {
+            _suppressRefresh = true;
+            try { IsDateMode = false; }
+            finally { _suppressRefresh = false; }
+            RememberViewForSelectedTopic();
+        }
+        RefreshEntries(e.Id);
+        OnEntrySaved(e);
     }
 
     /// <summary>The entry's date or topic moved: follow it so it stays visible.</summary>

@@ -19,6 +19,15 @@ public sealed class BoolToVisibilityConverter : IValueConverter
         (value is Visibility.Visible) ^ Invert;
 }
 
+/// <summary>True when the bound string equals the ConverterParameter (e.g. a menu item ticked for the current view).</summary>
+public sealed class EqualsParameterConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        string.Equals(value as string, parameter as string, StringComparison.Ordinal);
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+}
+
 public sealed class InverseBoolConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
@@ -38,8 +47,11 @@ public sealed class NullToVisibilityConverter : IValueConverter
 
 public sealed class ZeroToVisibilityConverter : IValueConverter
 {
+    /// <summary>Inverted: visible when the count is above zero.</summary>
+    public bool Invert { get; set; }
+
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-        value is int i && i == 0 ? Visibility.Visible : Visibility.Collapsed;
+        (value is int i && i == 0) != Invert ? Visibility.Visible : Visibility.Collapsed;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }

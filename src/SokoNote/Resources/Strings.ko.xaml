@@ -2,7 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
-    <sys:String x:Key="S.AppName">소코 업무정리</sys:String>
+    <sys:String x:Key="S.AppName">Soko Work Diary</sys:String>
     <sys:String x:Key="S.AllTopics">전체 주제</sys:String>
     <sys:String x:Key="S.Untitled">(제목 없음)</sys:String>
     <sys:String x:Key="S.EmptyList">표시할 일지가 없습니다.</sys:String>
@@ -56,11 +56,17 @@
     <sys:String x:Key="S.TopicDialogEdit">주제 편집</sys:String>
     <sys:String x:Key="S.TopicName">주제 이름</sys:String>
     <sys:String x:Key="S.TopicNamePlaceholder">예) 프로젝트 A</sys:String>
-    <sys:String x:Key="S.TopicKind">유형</sys:String>
-    <sys:String x:Key="S.TopicKindJournal">날짜별 기록</sys:String>
-    <sys:String x:Key="S.TopicKindInfo">정보 정리 (날짜 없음)</sys:String>
-    <sys:String x:Key="S.TopicKindHint">정보 정리: 서버 정보·연락처처럼 날짜 없이 정보만 모아 두는 주제입니다. 제목순으로 보이며 언제든 바꿀 수 있습니다.</sys:String>
-    <sys:String x:Key="S.InfoListTitle">{0} — 정보 목록</sys:String>
+    <sys:String x:Key="S.EntryKind">종류</sys:String>
+    <sys:String x:Key="S.EntryKindDated">업무 일지</sys:String>
+    <sys:String x:Key="S.EntryKindInfo">참고 정보</sys:String>
+    <sys:String x:Key="S.EntryKindDatedDesc">날짜를 붙여 기록 · 날짜별 보기에 표시됨</sys:String>
+    <sys:String x:Key="S.EntryKindInfoDesc">날짜 없이 보관 · 서버 정보, 연락처, 절차 등</sys:String>
+    <sys:String x:Key="S.EntryKindHint">일지 종류 전환</sys:String>
+    <sys:String x:Key="S.EntryKindHintToInfo">참고 정보로 전환 · 날짜 없이 보관 (Ctrl+Shift+K)</sys:String>
+    <sys:String x:Key="S.EntryKindHintToDated">업무 일지로 전환 · 날짜별 보기에 표시 (Ctrl+Shift+K)</sys:String>
+    <sys:String x:Key="S.NoDate">날짜 없이 보관</sys:String>
+    <sys:String x:Key="S.HiddenInfo">참고 정보 {0}건은 전체 보기에 있습니다 ·</sys:String>
+    <sys:String x:Key="S.InfoShownInAll">참고 정보는 '전체' 보기에 표시됩니다</sys:String>
     <sys:String x:Key="S.InfoGroup">정보 (날짜 없음)</sys:String>
     <sys:String x:Key="S.TopicColor">색상</sys:String>
     <sys:String x:Key="S.TopicNameDuplicate">"{0}" 주제가 이미 있습니다. 다른 이름을 입력하세요.</sys:String>
@@ -118,7 +124,7 @@
     <sys:String x:Key="S.ReadAllTruncated">전체 {1}건 중 최근 {0}건만 표시합니다. 날짜·주제·검색으로 범위를 좁혀 보세요.</sys:String>
     <sys:String x:Key="S.ClaudeWeb.Open">웹에서 묻기 (API 불필요)</sys:String>
     <sys:String x:Key="S.ClaudeWeb.OpenHint">claude.ai를 앱 안의 브라우저로 열어, 내 Claude 계정으로 업무 일지에 대해 질문합니다. API 키나 Claude Code가 필요 없습니다.</sys:String>
-    <sys:String x:Key="S.ClaudeWeb.Title">Claude 웹 — 소코 업무정리</sys:String>
+    <sys:String x:Key="S.ClaudeWeb.Title">Claude 웹 — Soko Work Diary</sys:String>
     <sys:String x:Key="S.ClaudeWeb.QuestionPlaceholder">업무에 대해 물어볼 내용 (예: 이번 달 진행 상황을 정리해줘)</sys:String>
     <sys:String x:Key="S.ClaudeWeb.Send">업무 내용과 함께 넣기</sys:String>
     <sys:String x:Key="S.ClaudeWeb.Insert">선택한 답변 → 일지</sys:String>
@@ -247,7 +253,7 @@
     <sys:String x:Key="S.Settings.BackupInfo">매일 첫 실행 시 자동 백업 (최근 {0}개 보관)</sys:String>
     <sys:String x:Key="S.Settings.OpenFolder">폴더 열기</sys:String>
     <sys:String x:Key="S.Settings.About">정보</sys:String>
-    <sys:String x:Key="S.Settings.AboutText">소코 업무정리 {0} · 주제별·날짜별 업무 일지 + Claude 비서</sys:String>
+    <sys:String x:Key="S.Settings.AboutText">Soko Work Diary {0} · 주제별·날짜별 업무 일지 + Claude 비서</sys:String>
     <sys:String x:Key="S.Settings.Shortcuts">단축키</sys:String>
-    <sys:String x:Key="S.Settings.ShortcutsText">Ctrl+N 새 일지 · Ctrl+S 저장 · Ctrl+F 검색 · Ctrl+K 링크 · Ctrl+B/I/U 서식 · Ctrl+←/→ 날짜 이동 · Ctrl+T 오늘 · Ctrl+Shift+C Claude · Ctrl+, 설정</sys:String>
+    <sys:String x:Key="S.Settings.ShortcutsText">Ctrl+N 새 일지 · Ctrl+Shift+I 새 참고 정보 · Ctrl+Shift+K 일지 종류 전환 · Ctrl+S 저장 · Ctrl+F 검색 · Ctrl+K 링크 · Ctrl+B/I/U 서식 · Ctrl+←/→ 날짜 이동 · Ctrl+T 오늘 · Ctrl+Shift+C Claude · Ctrl+, 설정</sys:String>
 </ResourceDictionary>

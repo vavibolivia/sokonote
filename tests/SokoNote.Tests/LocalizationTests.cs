@@ -36,9 +36,10 @@ public class LocalizationTests
     }
 
     [Fact]
-    public void App_name_is_soko_eommu_jeongri()
+    public void App_name_is_soko_work_diary()
     {
-        Assert.Equal("소코 업무정리", Load("ko")["S.AppName"]);
+        Assert.Equal("Soko Work Diary", Load("ko")["S.AppName"]);
+        Assert.Equal("Soko Work Diary", Load("en")["S.AppName"]);
     }
 
     [Fact]

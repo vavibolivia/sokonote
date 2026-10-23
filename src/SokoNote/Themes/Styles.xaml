@@ -27,11 +27,27 @@
     <SolidColorBrush x:Key="Hover" Color="#EEF0F4"/>
     <SolidColorBrush x:Key="Danger" Color="#D64545"/>
     <SolidColorBrush x:Key="DangerSoft" Color="#FDECEC"/>
+    <!-- entry kind: 업무 일지 (blue, accent family) / 참고 정보 (warm amber) -->
+    <Color x:Key="KindDatedTrackColor">#E8ECFD</Color>
+    <Color x:Key="KindDatedLineColor">#C9D3F7</Color>
+    <Color x:Key="KindInfoTrackColor">#FFF3D6</Color>
+    <Color x:Key="KindInfoLineColor">#E9D29A</Color>
+    <Color x:Key="KindDatedInkColor">#3F59D6</Color>
+    <Color x:Key="KindInfoInkColor">#8A5312</Color>
+    <Color x:Key="KindIdleInkColor">#596070</Color>
+    <SolidColorBrush x:Key="KindDatedTrack" Color="{StaticResource KindDatedTrackColor}"/>
+    <SolidColorBrush x:Key="KindDatedLine" Color="{StaticResource KindDatedLineColor}"/>
+    <SolidColorBrush x:Key="KindInfoTrack" Color="{StaticResource KindInfoTrackColor}"/>
+    <SolidColorBrush x:Key="KindInfoLine" Color="{StaticResource KindInfoLineColor}"/>
+    <SolidColorBrush x:Key="KindDatedInk" Color="{StaticResource KindDatedInkColor}"/>
+    <SolidColorBrush x:Key="KindInfoInk" Color="{StaticResource KindInfoInkColor}"/>
+    <SolidColorBrush x:Key="KindIdleInk" Color="{StaticResource KindIdleInkColor}"/>
 
     <FontFamily x:Key="UiFont">Malgun Gothic, Segoe UI</FontFamily>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
     <local:InverseBoolConverter x:Key="InverseBool"/>
+    <local:EqualsParameterConverter x:Key="EqualsParameter"/>
     <local:BoolToVisibilityConverter x:Key="BoolToVis"/>
     <local:BoolToVisibilityConverter x:Key="BoolToVisInv" Invert="True"/>
     <local:NullToVisibilityConverter x:Key="NullToVis"/>
@@ -43,6 +59,7 @@
     <local:ShortDateConverter x:Key="ShortDate"/>
     <local:CalendarMarkConverter x:Key="CalendarMark"/>
     <local:ZeroToVisibilityConverter x:Key="ZeroToVis"/>
+    <local:ZeroToVisibilityConverter x:Key="ZeroToVisInv" Invert="True"/>
 
     <Style TargetType="ToolTip">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
@@ -431,10 +448,54 @@
 
     <Style TargetType="DatePicker">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
-        <Setter Property="FontSize" Value="12.5"/>
-        <Setter Property="Height" Value="28"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+        <Setter Property="Background" Value="{StaticResource Surface}"/>
         <Setter Property="BorderBrush" Value="{StaticResource LineStrong}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DatePicker">
+                    <Border x:Name="box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4" SnapsToDevicePixels="True">
+                        <Grid x:Name="PART_Root">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <DatePickerTextBox x:Name="PART_TextBox" Grid.Column="0" Background="Transparent" BorderThickness="0" Padding="6,0,0,0"
+                                               Foreground="{TemplateBinding Foreground}" VerticalContentAlignment="Center" Focusable="{TemplateBinding Focusable}"/>
+                            <Button x:Name="PART_Button" Grid.Column="1" Width="26" Focusable="False" Cursor="Hand" Background="Transparent" BorderThickness="0">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="Transparent">
+                                            <TextBlock x:Name="g" Text="&#xE787;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{StaticResource InkMuted}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="g" Property="Foreground" Value="{StaticResource Ink}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True" Placement="Bottom" PlacementTarget="{Binding ElementName=PART_TextBox}" StaysOpen="False"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="box" Property="BorderBrush" Value="{StaticResource InkFaint}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="box" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ===================================================== list items -->
@@ -545,11 +606,73 @@
     <Style TargetType="ContextMenu">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+        <Setter Property="HasDropShadow" Value="False"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <!-- the 8px margin leaves room for the shadow inside the popup -->
+                    <Border Margin="8" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="6" SnapsToDevicePixels="True">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.12"/>
+                        </Border.Effect>
+                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
     <Style TargetType="MenuItem">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="13"/>
-        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+        <Setter Property="Padding" Value="8,5"/>
+        <Setter Property="Background" Value="{StaticResource Hover}"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="bg" CornerRadius="6" Padding="{TemplateBinding Padding}" Background="Transparent" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ContentPresenter x:Name="icon" ContentSource="Icon" Width="18" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                            <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="gesture" Grid.Column="2" Text="{TemplateBinding InputGestureText}" FontFamily="{StaticResource UiFont}" FontSize="11.5"
+                                       Foreground="{StaticResource InkMuted}" Margin="24,0,0,0" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Icon" Value="{x:Null}">
+                            <Setter TargetName="icon" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="InputGestureText" Value="">
+                            <Setter TargetName="gesture" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="bg" Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bg" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Separator">
+                    <Border Height="1" Background="{StaticResource Line}" Margin="6,5"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="Separator" TargetType="Border">
